@@ -4,12 +4,14 @@ import Chisel._
 import Node._
 import scala.collection.mutable.HashMap
 
-case class ImageType(width:UInt, height:UInt) {
+case class ImageType(width:UInt, height:UInt) 
+
+/*{
   def this(filename: String) = {
     val img = Image(filename)
     this(UInt(img.w), UInt(img.h))
   }
-}
+}*/
 
 class Pixel extends Bundle {
   val r = UInt(width = 8)
@@ -35,8 +37,8 @@ class Counter(max: UInt) extends Module {
   io.count := x
   io.top := x === max
 
-  when (io.en) x := Mux(io.top, UInt(0), x + UInt(1))
-  when (io.reset) x := UInt(0)
+  when (io.en) {x := Mux(io.top, UInt(0), x + UInt(1))}
+  when (io.reset) {x := UInt(0)}
 }
 
 class ImageCounter(it: ImageType) extends Module {
@@ -46,17 +48,17 @@ class ImageCounter(it: ImageType) extends Module {
     val out = new Coord().asOutput
   }
   
-  val col_counter = Counter(it.width-UInt(1))
-  val row_counter = Counter(it.height-UInt(1))
+  val col_counter = new Counter(it.width-UInt(1))
+  val row_counter = new Counter(it.height-UInt(1))
 
-  col_counter.reset := io.reset
-  row_counter.reset := io.reset
+  col_counter.io.reset := io.reset
+  row_counter.io.reset := io.reset
 
-  col_counter.en := io.valid
-  row_counter.en := io.valid & col_counter.top
+  col_counter.io.en := io.valid
+  row_counter.io.en := io.valid & col_counter.io.top
   
-  out.col := col_counter.count
-  out.row := row_counter.count
+  io.out.col := col_counter.io.count
+  io.out.row := row_counter.io.count
 }
 
 /*object ExtremaDetector {
@@ -71,12 +73,12 @@ class ScaleSpaceExtrema(it: ImageType) extends Module {
     val out = Valid(new Coord()).asOutput
   }
 
-  val ic = ImageCounter(it)
-  ic.reset := io.in.reset
-  ic.valid := io.in.valid
+  val ic = new ImageCounter(it)
+  ic.io.reset := io.reset
+  ic.io.valid := io.in.valid
 
-  io.out.valid := in.valid & (ic.row > ic.col) & (io.in.bits < 128)
-  io.out.bits <> ic.out
+  io.out.valid := io.in.valid & (ic.io.out.row > ic.io.out.col) & (io.in.bits < UInt(128))
+  io.out.bits <> ic.io.out
 }
 
 class ScaleSpaceExtremaTests(c: ScaleSpaceExtrema, val infilename: String, val outfilename: String) extends Tester(c, Array(c.io)) {
@@ -100,8 +102,9 @@ class ScaleSpaceExtremaTests(c: ScaleSpaceExtrema, val infilename: String, val o
       svars(c.io.in.bits) = Bits(in)
       step(svars, ovars, false)
       
-      val out = ovars(c.io.out).litValue()
-      outPic.data(i) = if (out.toBool) {255} else {0}
+      val out = ovars(c.io.out.valid).litValue()
+      val pix = if (out.testBit(0)) 200 else 100
+      outPic.data(i) = pix.toByte
     }
     outPic.write(outfilename)
     true

@@ -1,7 +1,7 @@
 SBT          := sbt
 CHISEL_FLAGS :=
 
-executables := $(filter-out main,\
+executables := $(filter-out main Image,\
             $(notdir $(basename $(wildcard source/*.scala))))
 
 tut_outs    := emulator/$(addsuffix .out, $(executables))
