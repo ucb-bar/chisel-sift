@@ -1,18 +1,20 @@
 SBT          := sbt
 CHISEL_FLAGS :=
 
-executables := emulator/$(filter-out source,\
+executables := $(filter-out main,\
             $(notdir $(basename $(wildcard source/*.scala))))
 
 tut_outs    := emulator/$(addsuffix .out, $(executables))
 
 all: emulator verilog
 
+exec: $(executables)
+
 check: test-solutions.xml
 
 clean:
 	-rm -f emulator/*.h emulator/*.cpp emulator/*.o emulator/*.out verilog/*.v $(executables)
-	-rm -rf project/target/ target/
+	-rm -rf project target
 
 emulator: $(tut_outs)
 
