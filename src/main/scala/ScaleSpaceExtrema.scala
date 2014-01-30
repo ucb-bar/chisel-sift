@@ -19,9 +19,12 @@ class Pixel extends Bundle {
   val b = UInt(width = 8)
 }
 
-class Coord extends Bundle {
-  val row = UInt()
-  val col = UInt()
+class Coord(it: ImageType) extends Bundle {
+  val col = UInt(OUTPUT,width=it.width.getWidth)
+  val row = UInt(OUTPUT,width=it.height.getWidth)
+  override def clone: this.type = {
+    new Coord(new ImageType(UInt(width=col.getWidth),UInt(width=row.getWidth))).asInstanceOf[this.type];
+  }
 }
 
 class Counter(max: UInt) extends Module {
@@ -45,11 +48,11 @@ class ImageCounter(it: ImageType) extends Module {
   val io = new Bundle {
     val reset = Bool(INPUT)
     val valid = Bool(INPUT)
-    val out = new Coord().asOutput
+    val out = new Coord(it).asOutput
   }
   
-  val col_counter = new Counter(it.width-UInt(1))
-  val row_counter = new Counter(it.height-UInt(1))
+  val col_counter = Module(new Counter(it.width-UInt(1)))
+  val row_counter = Module(new Counter(it.height-UInt(1)))
 
   col_counter.io.reset := io.reset
   row_counter.io.reset := io.reset
@@ -70,14 +73,14 @@ class ScaleSpaceExtrema(it: ImageType) extends Module {
   val io = new Bundle {
     val reset = Bool(INPUT)
     val in = Valid(UInt(width=8)).asInput
-    val out = Valid(new Coord()).asOutput
+    val out = Valid(new Coord(it)).asOutput
   }
 
-  val ic = new ImageCounter(it)
+  val ic = Module(new ImageCounter(it))
   ic.io.reset := io.reset
   ic.io.valid := io.in.valid
 
-  io.out.valid := io.in.valid & (ic.io.out.row > ic.io.out.col) & (io.in.bits < UInt(128))
+  io.out.valid := io.in.valid & (ic.io.out.row > ic.io.out.col)// & (io.in.bits < UInt(128))
   io.out.bits <> ic.io.out
 }
 

@@ -3,3 +3,4 @@ target
 emulator
 verilog
 data
+*.swp
