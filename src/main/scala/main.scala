@@ -10,9 +10,11 @@ object SIFT {
     args(0) match {
       case "ScaleSpaceExtrema" =>
         val img = Image("data/in.im24")
+
         chiselMainTest(tutArgs,
-          () => Module(new ScaleSpaceExtrema(new ImageType(UInt(img.w), UInt(img.h))))){
-            c => new ScaleSpaceExtremaTests(c,"data/in.im24","data/out.im24")
+          () => Module(new ScaleSpaceExtrema(
+            new ImageType(UInt(img.w), UInt(img.h), img.d)))) {
+            c => new ScaleSpaceExtremaTests(c, "data/in.im24", "data/out.im24")
       }
     }
   }
