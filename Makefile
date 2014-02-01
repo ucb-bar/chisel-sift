@@ -6,6 +6,8 @@ executables := $(filter-out main Image,\
 
 tut_outs    := emulator/$(addsuffix .out, $(executables))
 
+emulator: $(tut_outs)
+
 all: emulator verilog
 
 exec: $(executables)
@@ -15,8 +17,6 @@ check: test-solutions.xml
 clean:
 	-rm -f emulator/*.h emulator/*.cpp emulator/*.o emulator/*.out verilog/*.v $(executables)
 	-rm -rf project target
-
-emulator: $(tut_outs)
 
 verilog: verilog/$(addsuffix .v, $(executables))
 

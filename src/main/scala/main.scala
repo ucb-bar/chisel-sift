@@ -14,7 +14,8 @@ object SIFT {
         chiselMainTest(tutArgs,
           () => Module(new ScaleSpaceExtrema(
             new ImageType(UInt(img.w), UInt(img.h), img.d)))) {
-            c => new ScaleSpaceExtremaTests(c, "data/in.im24", "data/out.im24")
+            c => new ScaleSpaceExtremaTests(c, "data/in.im24",
+              "data/out.im24","data/coord.im24")
       }
     }
   }
