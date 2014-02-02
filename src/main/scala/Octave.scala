@@ -12,30 +12,33 @@ class Octave(it: ImageType, index: Int, n_ext: Int = 2, next_tap: Int = 2)
   
   val io = new Bundle {
     val reset = Bool(INPUT)
-    val in = Valid(UInt(width=it.dwidth)).asInput
+    val img_in = Valid(UInt(width=it.dwidth)).asInput
     val coord = Valid(new Coord(it)).asOutput
     
     // Debug image selection and output
     val select = Decoupled(UInt,width=8))
-    val img = Valid(UInt(width=it.dwidth)).asOutput
+    val img_out = Decoupled(UInt(width=it.dwidth)).asOutput
 
     // Chain output and input
-    val next_img_out = Decoupled(UInt(width=it.dwdith)).asOutput
     val next_img_in = Decoupled(UInt(width=it.dwdith)).asInput
+    val next_img_out = Valid(UInt(width=it.dwdith)).asOutput
   }
 
   // Count pixels output
   val ic = Module(new ImageCounter(it))
   io.coord.bits <> ic.io.out
   ic.io.reset := io.reset | io.select.fire
-  ic.io.en := io.img.fire
+  ic.io.en := io.img_out.fire
+
+  // Just generate a pattern on valid for now
+  io.coord.valid := ic.io.out.col > ic.io.out.row
 
   // Allow changing source when stream is not in process
   val select_ready = Reg(resetVal = Bool(true))
   io.select.ready := select_ready
-  when(io.img.fire & ic.io.top)
+  when(io.img_out.fire & ic.io.top)
     select_ready := Bool(true)
-  when(io.in.valid)
+  when(io.img_in.valid)
     select_ready := Bool(false)
 
   // Latch output image source when allowed
@@ -46,7 +49,7 @@ class Octave(it: ImageType, index: Int, n_ext: Int = 2, next_tap: Int = 2)
   // Downsampler
   val ds = Module(new DownSampler(it))
   ds.io.reset := io.reset
-  ds.io.in <> io.in
+  ds.io.in <> io.img_in
 
   val it_div_2 = new ImageType(it.width>>UInt(1), it.height >> UInt(1),
     itd.depth)
@@ -82,29 +85,29 @@ class Octave(it: ImageType, index: Int, n_ext: Int = 2, next_tap: Int = 2)
   when(select_r(7,4) === UInt(index)) {
     // 0 is bypasses down/upsample, helps debug tap select
     when(select_r(3,0) === UInt(0)) {
-      io.img <> io.in
+      io.img_out <> io.img_in
     // Otherwise use output from upsampler
     } .otherwise {
-      io.img <> us.io.out
+      io.img_out <> us.io.out
     }
 
     // Default input to upsampler is downsampler, includes select_r = 1
     us.io.in <> ds.io.out
     switch(select_r(3,0)) {
-      is(UInt(2))   {us.io.in <> gauss(0).io.out
-      is(UInt(3))   {us.io.in <> gauss(1).io.out
-      is(UInt(4))   {us.io.in <> diff(0).io.out
-      is(UInt(5))   {us.io.in <> gauss(2).io.out
-      is(UInt(6))   {us.io.in <> diff(1).io.out
-      is(UInt(7))   {us.io.in <> gauss(3).io.out
-      is(UInt(8))   {us.io.in <> diff(2).io.out
-      is(UInt(9))   {us.io.in <> gauss(4).io.out
-      is(UInt(10))  {us.io.in <> diff(3).io.out
+      is(UInt(2))   {us.io.in <> gauss(0).io.out}
+      is(UInt(3))   {us.io.in <> gauss(1).io.out}
+      is(UInt(4))   {us.io.in <> diff(0).io.out}
+      is(UInt(5))   {us.io.in <> gauss(2).io.out}
+      is(UInt(6))   {us.io.in <> diff(1).io.out}
+      is(UInt(7))   {us.io.in <> gauss(3).io.out}
+      is(UInt(8))   {us.io.in <> diff(2).io.out}
+      is(UInt(9))   {us.io.in <> gauss(4).io.out}
+      is(UInt(10))  {us.io.in <> diff(3).io.out}
     }
 
   // Otherwise select stream from next octave and upsample it
   } .otherwise {
     us.io.in <> io.next_img_in
-    io.img <> us.io.out
+    io.img_out <> us.io.out
   }
 }

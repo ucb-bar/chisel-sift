@@ -6,6 +6,8 @@ executables := $(filter-out main Image,\
 
 tut_outs    := emulator/$(addsuffix .out, $(executables))
 
+top: emulator/ScaleSpaceExtrema.out source/*.scala
+
 emulator: $(tut_outs)
 
 all: emulator verilog
@@ -29,4 +31,4 @@ emulator/%.out: source/%.scala
 verilog/%.v: source/%.scala
 	$(SBT) "run $(notdir $(basename $<)) --genHarness --backend v --targetDir verilog $(CHISEL_FLAGS)"
 
-.PHONY: all check clean emulator verilog
+.PHONY: all check clean emulator verilog top

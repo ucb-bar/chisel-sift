@@ -4,72 +4,43 @@ import Chisel._
 import Node._
 import scala.collection.mutable.HashMap
 
-case class ImageType(width:UInt, height:UInt, dwidth: Int = 8)
-
-class Pixel extends Bundle {
-  val r = UInt(width = 8)
-  val g = UInt(width = 8)
-  val b = UInt(width = 8)
-}
-
-class Coord(it: ImageType) extends Bundle {
-  val col = UInt(OUTPUT,width=it.width.getWidth)
-  val row = UInt(OUTPUT,width=it.height.getWidth)
-  override def clone: this.type = {
-    new Coord(new ImageType(UInt(width=col.getWidth),
-      UInt(width=row.getWidth))).asInstanceOf[this.type];
-  }
-}
-
-class Counter(max: UInt) extends Module {
+class ScaleSpaceExtrema(it: ImageType, n_oct: Int = 2) extends Module {
   val io = new Bundle {
     val reset = Bool(INPUT)
-    val en = Bool(INPUT)
-    val count = UInt(OUTPUT, max.getWidth)
-    val top = Bool(OUTPUT)
-  }
-
-  val x = Reg(init=UInt(0, max.getWidth))
-  
-  io.count := x
-  io.top := x === max
-
-  when (io.en) {x := Mux(io.top, UInt(0), x + UInt(1))}
-  when (io.reset) {x := UInt(0)}
-}
-
-class ImageCounter(it: ImageType) extends Module {
-  val io = new Bundle {
-    val reset = Bool(INPUT)
-    val en = Bool(INPUT)
-    val out = new Coord(it).asOutput
-    val top = Bool(OUTPUT)
-  }
-  
-  val col_counter = Module(new Counter(it.width-UInt(1)))
-  val row_counter = Module(new Counter(it.height-UInt(1)))
-
-  col_counter.io.reset := io.reset
-  row_counter.io.reset := io.reset
-
-  col_counter.io.en := io.en
-  row_counter.io.en := io.en & col_counter.io.top
-  
-  io.out.col := col_counter.io.count
-  io.out.row := row_counter.io.count
-
-  io.out.top := col_counter.io.top & row_counter.io.top
-}
-
-class ScaleSpaceExtrema(it: ImageType) extends Module {
-  val io = new Bundle {
-    val reset = Bool(INPUT)
-    val in = Valid(UInt(width=it.dwidth)).asInput
-    val img = Valid(UInt(width=it.dwidth)).asOutput
+    val img_in = Valid(UInt(width=it.dwidth)).asInput
+    val img_out = Valid(UInt(width=it.dwidth)).asOutput
     val coord = Valid(new Coord(it)).asOutput
   }
 
-  val ic = Module(new ImageCounter(it))
+  val oct = Range(0, n_oct).map(i => Module(new Octave(it.subsample(i))))
+
+  for (i <- 1 until n_oct) {
+    oct(i).io.reset := io.reset
+    oct(i).io.img_in <> oct(i-1).io.next_img_out
+    oct(i).io.img_out <> oct(i-1).io.next_img_in
+  }
+  
+  if (it.dwidth == 8)
+    oct(0).io.img_in.bits := io.img_in.bits
+  else {
+    // Approximate (r+b+g)/3 as (r+b+g)*(16 + 4 + 1)/64
+    // Also offset by 4 to allow for colorspace mapping
+    val sum = UInt(width = 10)
+    val div = UInt(width = 14)
+    sum := io.img_in.bits(23,16) + io.img_in.bits(15,8) + io.img_in.bits(7,0)
+    div := UInt(16)*sum + UInt(4)*sum + sum
+    oct(0).io.img_in.bits := div(13,6) + UInt(4)
+  }
+  oct(0).io.img_in.valid := io.img_in.valid
+  
+  if (it.dwidth == 8)
+    io.img_out.bits := oct(n_oct-1).io.img_out.bits
+  else 
+    io.img_out.bits := Fill(3,oct(n_oct-1).io.img_out.bits)
+  io.img_out.valid := oct(n_oct-1).io.img_out.valid
+  
+
+  /*val ic = Module(new ImageCounter(it))
   ic.io.reset := io.reset
   ic.io.en := io.in.valid
 
@@ -78,8 +49,10 @@ class ScaleSpaceExtrema(it: ImageType) extends Module {
   io.img.bits := (io.in.bits >> UInt(1)) & UInt(0x7F7F7F)
 
   // Coordinate output
-  io.coord.valid := io.in.valid & (ic.io.out.row > ic.io.out.col) & (io.in.bits < UInt(128))
-  io.coord.bits <> ic.io.out
+  io.coord.valid := io.in.valid & (ic.io.out.row > ic.io.out.col) & 
+    (io.in.bits < UInt(128))
+  
+  io.coord.bits <> ic.io.out*/
 }
 
 class ScaleSpaceExtremaTests(c: ScaleSpaceExtrema, val infilename: String,
