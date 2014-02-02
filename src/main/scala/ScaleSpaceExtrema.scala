@@ -41,8 +41,9 @@ class Counter(max: UInt) extends Module {
 class ImageCounter(it: ImageType) extends Module {
   val io = new Bundle {
     val reset = Bool(INPUT)
-    val valid = Bool(INPUT)
+    val en = Bool(INPUT)
     val out = new Coord(it).asOutput
+    val top = Bool(OUTPUT)
   }
   
   val col_counter = Module(new Counter(it.width-UInt(1)))
@@ -51,17 +52,14 @@ class ImageCounter(it: ImageType) extends Module {
   col_counter.io.reset := io.reset
   row_counter.io.reset := io.reset
 
-  col_counter.io.en := io.valid
-  row_counter.io.en := io.valid & col_counter.io.top
+  col_counter.io.en := io.en
+  row_counter.io.en := io.en & col_counter.io.top
   
   io.out.col := col_counter.io.count
   io.out.row := row_counter.io.count
-}
 
-/*object ExtremaDetector {
-  def apply(p: Pixel) = {(p.r + p.g + p.b) > UInt(383))
-  def apply(p: UInt) = {p > UInt(127)}
-}*/
+  io.out.top := col_counter.io.top & row_counter.io.top
+}
 
 class ScaleSpaceExtrema(it: ImageType) extends Module {
   val io = new Bundle {
@@ -73,7 +71,7 @@ class ScaleSpaceExtrema(it: ImageType) extends Module {
 
   val ic = Module(new ImageCounter(it))
   ic.io.reset := io.reset
-  ic.io.valid := io.in.valid
+  ic.io.en := io.in.valid
 
   // Test image output
   io.img.valid := io.in.valid
