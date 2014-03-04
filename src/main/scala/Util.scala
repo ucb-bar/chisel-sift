@@ -25,34 +25,28 @@ class Coord(it: ImageType) extends Bundle {
 
 class Counter(max: UInt) extends Module {
   val io = new Bundle {
-    val reset = Bool(INPUT)
     val en = Bool(INPUT)
     val count = UInt(OUTPUT, max.getWidth)
     val top = Bool(OUTPUT)
   }
 
-  val x = Reg(init=UInt(0, max.getWidth))
+  val x = Reg(resetVal = UInt(0, max.getWidth))
 
   io.count := x
   io.top := x === max
 
   when (io.en) {x := Mux(io.top, UInt(0), x + UInt(1))}
-  when (io.reset) {x := UInt(0)}
 }
 
 class ImageCounter(it: ImageType) extends Module {
   val io = new Bundle {
-    val reset = Bool(INPUT)
     val en = Bool(INPUT)
-    val out = new Coord(it).asOutput
+    val out = new Coord(it)
     val top = Bool(OUTPUT)
   }
 
   val col_counter = Module(new Counter(it.width-UInt(1)))
   val row_counter = Module(new Counter(it.height-UInt(1)))
-
-  col_counter.io.reset := io.reset
-  row_counter.io.reset := io.reset
 
   col_counter.io.en := io.en
   row_counter.io.en := io.en & col_counter.io.top

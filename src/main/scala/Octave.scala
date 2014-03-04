@@ -11,23 +11,21 @@ class Octave(it: ImageType, index: Int, n_ext: Int = 2, next_tap: Int = 2)
   extends Module {
   
   val io = new Bundle {
-    val reset = Bool(INPUT)
-    val img_in = Valid(UInt(width=it.dwidth)).asInput
-    val coord = Valid(new Coord(it)).asOutput
+    val img_in = Valid(UInt(width=it.dwidth)).flip
+    val coord = Valid(new Coord(it))
     
     // Debug image selection and output
-    val select = Decoupled(UInt,width=8))
-    val img_out = Decoupled(UInt(width=it.dwidth)).asOutput
+    val select = Decoupled(UInt(width=8)).flip
+    val img_out = Decoupled(UInt(width=it.dwidth))
 
     // Chain output and input
-    val next_img_in = Decoupled(UInt(width=it.dwdith)).asInput
-    val next_img_out = Valid(UInt(width=it.dwdith)).asOutput
+    val next_img_in = Decoupled(UInt(width=it.dwdith)).flip
+    val next_img_out = Valid(UInt(width=it.dwdith))
   }
 
   // Count pixels output
   val ic = Module(new ImageCounter(it))
-  io.coord.bits <> ic.io.out
-  ic.io.reset := io.reset | io.select.fire
+  io.coord.bits := ic.io.out
   ic.io.en := io.img_out.fire
 
   // Just generate a pattern on valid for now
@@ -36,20 +34,22 @@ class Octave(it: ImageType, index: Int, n_ext: Int = 2, next_tap: Int = 2)
   // Allow changing source when stream is not in process
   val select_ready = Reg(resetVal = Bool(true))
   io.select.ready := select_ready
-  when(io.img_out.fire & ic.io.top)
+  when(io.img_out.fire & ic.io.top) {
     select_ready := Bool(true)
-  when(io.img_in.valid)
+  }
+  when(io.img_in.valid) {
     select_ready := Bool(false)
+  }
 
   // Latch output image source when allowed
   val select_r = Reg(resetVal = UInt(0,8))
-  when (io.select.fire)
+  when (io.select.fire) {
     select_r := io.select.bits
+  }
 
   // Downsampler
   val ds = Module(new DownSampler(it))
-  ds.io.reset := io.reset
-  ds.io.in <> io.img_in
+  ds.io.in := io.img_in
 
   val it_div_2 = new ImageType(it.width>>UInt(1), it.height >> UInt(1),
     itd.depth)
@@ -61,7 +61,6 @@ class Octave(it: ImageType, index: Int, n_ext: Int = 2, next_tap: Int = 2)
   gauss(0).io.in <> ds.io.out
 
   for(i <- 0 until n_gauss) {
-    gauss(i).io.reset := io.reset
     if (i < n_gauss - 1)
       gauss(i+1).io.in <> gauss(i).io.out
   }
@@ -72,7 +71,6 @@ class Octave(it: ImageType, index: Int, n_ext: Int = 2, next_tap: Int = 2)
   val n_diff = n_ext + 2
   val diff = Range(0, n_diff).map(i => Module(new DelayDiff(it_div_2)))
   for (i <- 0 until n_diff) {
-    diff(i).io.reset := io.reset
     diff(i).io.a <> gauss(i).io.out
     diff(i).io.b <> gauss(i+1).io.out
   }

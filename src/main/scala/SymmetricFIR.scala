@@ -8,11 +8,10 @@ import Chisel._
   * dwidth: bit width of elements
   * coeff: coefficients of symmetric FIR filter, listed from outer to center
   */
-class SymmetricFIR(delay: Int, line: Int, n_tap: Int, dwidth = 8,
-  coeff: List[UInt] = List(UInt(6,8), UInt(58,8), UInt(128,8)) extends Module{
+class SymmetricFIR(delay: Int, line: Int, n_tap: Int, dwidth : Int = 8,
+  coeff: List[UInt] = List(UInt(6,8), UInt(58,8), UInt(128,8))) extends Module{
   val io = Bundle {
-    val reset = Bool(INPUT)
-    val in = Valid(UInt(width = dwidth))
+    val in = Valid(UInt(width = dwidth)).flip
     val out = Valid(Uint(width = dwidth))
   }
 
@@ -27,13 +26,11 @@ class SymmetricFIR(delay: Int, line: Int, n_tap: Int, dwidth = 8,
   
   // Count inputs until pipeline is primed
   val prime_counter = Module(new Counter(UInt(prime_delay)))
-  prime_counter.io.reset := io.reset
   prime_counter.io.en := io.in.valid & ~prime_counter.io.top
   io.out.valid := prime_counter.io.top
 
   // Counter for line to disable taps when at edge
   val line_counter = Module(new Counter(UInt(line-1)))
-  line_counter.io.reset := io.reset
   line_counter.io.en := io.in.valid &
     prime_counter.io.count > UInt(2*delay + mul_delay - 1)
 
@@ -50,7 +47,7 @@ class SymmetricFIR(delay: Int, line: Int, n_tap: Int, dwidth = 8,
   }
   
   // Element-wise multiplication of coeff and delay elements
-  val mul_out = (coeff, delays(io.in.bits, mid_tap)).zipped.( _ * _ )
+  val mul_out = (coeff, tap_delays(io.in.bits, mid_tap)).zipped.map( _ * _ )
 
   // Collect all terms to sum
   val terms = Vec.fill(n_tap) { UInt(width=2*dwidth) }

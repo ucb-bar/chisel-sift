@@ -6,16 +6,14 @@ import scala.collection.mutable.HashMap
 
 class ScaleSpaceExtrema(it: ImageType, n_oct: Int = 2) extends Module {
   val io = new Bundle {
-    val reset = Bool(INPUT)
-    val img_in = Valid(UInt(width=it.dwidth)).asInput
-    val img_out = Valid(UInt(width=it.dwidth)).asOutput
-    val coord = Valid(new Coord(it)).asOutput
+    val img_in = Valid(UInt(width=it.dwidth)).flip
+    val img_out = Valid(UInt(width=it.dwidth))
+    val coord = Valid(new Coord(it))
   }
 
   val oct = Range(0, n_oct).map(i => Module(new Octave(it.subsample(i))))
 
   for (i <- 1 until n_oct) {
-    oct(i).io.reset := io.reset
     oct(i).io.img_in <> oct(i-1).io.next_img_out
     oct(i).io.img_out <> oct(i-1).io.next_img_in
   }
@@ -41,7 +39,6 @@ class ScaleSpaceExtrema(it: ImageType, n_oct: Int = 2) extends Module {
   
 
   /*val ic = Module(new ImageCounter(it))
-  ic.io.reset := io.reset
   ic.io.en := io.in.valid
 
   // Test image output
@@ -68,11 +65,6 @@ class ScaleSpaceExtremaTests(c: ScaleSpaceExtrema, val infilename: String,
     val coordPic = Image(inPic.w, inPic.h, inPic.d)
     val n_byte = inPic.d/8
 
-    svars(c.io.reset) = Bool(true)
-    
-    step(svars, ovars, false)
-    
-    svars(c.io.reset) = Bool(false)
     svars(c.io.in.valid) = Bool(true)
     
     for (i <- 0 until inPic.data.length/n_byte) {
