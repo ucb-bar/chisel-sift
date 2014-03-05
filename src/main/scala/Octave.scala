@@ -19,22 +19,22 @@ class Octave(it: ImageType, index: Int, n_ext: Int = 2, next_tap: Int = 2)
     val img_out = Decoupled(UInt(width=it.dwidth))
 
     // Chain output and input
-    val next_img_in = Decoupled(UInt(width=it.dwdith)).flip
-    val next_img_out = Valid(UInt(width=it.dwdith))
+    val next_img_in = Decoupled(UInt(width=it.dwidth)).flip
+    val next_img_out = Valid(UInt(width=it.dwidth))
   }
 
   // Count pixels output
   val ic = Module(new ImageCounter(it))
   io.coord.bits := ic.io.out
-  ic.io.en := io.img_out.fire
+  ic.io.en := io.img_out.fire()
 
   // Just generate a pattern on valid for now
   io.coord.valid := ic.io.out.col > ic.io.out.row
 
   // Allow changing source when stream is not in process
-  val select_ready = Reg(resetVal = Bool(true))
+  val select_ready = Reg(init = Bool(true))
   io.select.ready := select_ready
-  when(io.img_out.fire & ic.io.top) {
+  when(io.img_out.fire() & ic.io.top) {
     select_ready := Bool(true)
   }
   when(io.img_in.valid) {
@@ -42,8 +42,8 @@ class Octave(it: ImageType, index: Int, n_ext: Int = 2, next_tap: Int = 2)
   }
 
   // Latch output image source when allowed
-  val select_r = Reg(resetVal = UInt(0,8))
-  when (io.select.fire) {
+  val select_r = Reg(init = UInt(0,8))
+  when (io.select.fire()) {
     select_r := io.select.bits
   }
 
@@ -51,8 +51,7 @@ class Octave(it: ImageType, index: Int, n_ext: Int = 2, next_tap: Int = 2)
   val ds = Module(new DownSampler(it))
   ds.io.in := io.img_in
 
-  val it_div_2 = new ImageType(it.width>>UInt(1), it.height >> UInt(1),
-    itd.depth)
+  val it_div_2 = it.subsample()
 
   // Chain of gaussian blurs
   val n_gauss = n_ext + 3
@@ -69,7 +68,7 @@ class Octave(it: ImageType, index: Int, n_ext: Int = 2, next_tap: Int = 2)
 
   // Take difference of gaussian pairs
   val n_diff = n_ext + 2
-  val diff = Range(0, n_diff).map(i => Module(new DelayDiff(it_div_2)))
+  val diff = Range(0, n_diff).map(i => Module(new DelayDiff(it_div_2,gauss(i).n_tap)))
   for (i <- 0 until n_diff) {
     diff(i).io.a <> gauss(i).io.out
     diff(i).io.b <> gauss(i+1).io.out

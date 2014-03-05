@@ -10,9 +10,9 @@ import Chisel._
   */
 class SymmetricFIR(delay: Int, line: Int, n_tap: Int, dwidth : Int = 8,
   coeff: List[UInt] = List(UInt(6,8), UInt(58,8), UInt(128,8))) extends Module{
-  val io = Bundle {
+  val io = new Bundle {
     val in = Valid(UInt(width = dwidth)).flip
-    val out = Valid(Uint(width = dwidth))
+    val out = Valid(UInt(width = dwidth))
   }
 
   // Delay from shifters to adder input
@@ -37,8 +37,6 @@ class SymmetricFIR(delay: Int, line: Int, n_tap: Int, dwidth : Int = 8,
   // Count (zero index - 1) of middle tap (number of pathways)
   val mid_tap = (n_tap+1)/2
 
-  val mul_out = Vec.fill(mid_tap){UInt(width=dwidth)}
-  
   def tap_delays[T <: Data](x: T, n: Int): List[T] = {
     if(n <= 1) 
       List(x) 

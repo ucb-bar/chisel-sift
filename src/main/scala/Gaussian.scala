@@ -2,7 +2,7 @@ package SIFT
 
 import Chisel._
 
-class Gaussian(it: ImageType, n_tap: Int) extends Module{
+class Gaussian(it: ImageType, val n_tap: Int = 5) extends Module{
   val io = new Bundle{
     val in = Valid(UInt(width=it.dwidth)).flip
     val out = Valid(UInt(width=it.dwidth))
