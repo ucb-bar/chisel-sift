@@ -19,8 +19,15 @@ class Coord(it: ImageType) extends Bundle {
   val row = UInt(OUTPUT,width=log2Up(it.height))
   
   override def clone: this.type = {
-    new Coord(new ImageType(UInt(width=col.getWidth),
-      UInt(width=row.getWidth))).asInstanceOf[this.type];
+    //new Coord(new ImageType(UInt(width=col.getWidth),
+    //  UInt(width=row.getWidth))).asInstanceOf[this.type];
+    try {
+      super.clone()
+    } catch {
+      case e: java.lang.Exception => {
+        new Coord(it).asInstanceOf[this.type]
+      }
+    }
   }
 }
 

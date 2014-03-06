@@ -11,7 +11,7 @@ class ScaleSpaceExtrema(it: ImageType, n_oct: Int = 2) extends Module {
     val coord = Valid(new Coord(it))
   }
 
-  val oct = Range(0, n_oct).map(i => Module(new Octave(it.subsample(i))))
+  val oct = Range(0, n_oct).map(i => Module(new Octave(it.subsample(i),i)))
 
   for (i <- 1 until n_oct) {
     oct(i).io.img_in <> oct(i-1).io.next_img_out
@@ -29,44 +29,33 @@ class ScaleSpaceExtrema(it: ImageType, n_oct: Int = 2) extends Module {
     div := UInt(16)*sum + UInt(4)*sum + sum
     oct(0).io.img_in.bits := div(13,6) + UInt(4)
   }
+
   oct(0).io.img_in.valid := io.img_in.valid
   
   if (it.dwidth == 8)
     io.img_out.bits := oct(n_oct-1).io.img_out.bits
   else 
     io.img_out.bits := Fill(3,oct(n_oct-1).io.img_out.bits)
+  
   io.img_out.valid := oct(n_oct-1).io.img_out.valid
-  
-
-  /*val ic = Module(new ImageCounter(it))
-  ic.io.en := io.in.valid
-
-  // Test image output
-  io.img.valid := io.in.valid
-  io.img.bits := (io.in.bits >> UInt(1)) & UInt(0x7F7F7F)
-
-  // Coordinate output
-  io.coord.valid := io.in.valid & (ic.io.out.row > ic.io.out.col) & 
-    (io.in.bits < UInt(128))
-  
-  io.coord.bits <> ic.io.out*/
 }
 
 class ScaleSpaceExtremaTests(c: ScaleSpaceExtrema, val infilename: String,
   val imgfilename: String, val coordfilename: String) 
-  extends Tester(c, Array(c.io)) {
-  
-  defTests {
-    val svars = new HashMap[Node, Node]()
-    val ovars = new HashMap[Node, Node]()
+  //extends Tester(c, Array(c.io)) {
+  extends Tester(c, false) {
+
+  //defTests {
+  //  val svars = new HashMap[Node, Node]()
+  //  val ovars = new HashMap[Node, Node]()
 
     val inPic = Image(infilename)
     val imgPic = Image(inPic.w, inPic.h, inPic.d)
     val coordPic = Image(inPic.w, inPic.h, inPic.d)
     val n_byte = inPic.d/8
 
-    svars(c.io.in.valid) = Bool(true)
-    
+    //svars(c.io.in.valid) = Bool(true)
+
     for (i <- 0 until inPic.data.length/n_byte) {
       var pixel = 0
       for (j <- 0 until n_byte) {
@@ -76,18 +65,26 @@ class ScaleSpaceExtremaTests(c: ScaleSpaceExtrema, val infilename: String,
         pixel += in
       }
       
-      svars(c.io.in.bits) = Bits(pixel)
-      step(svars, ovars, false)
-      
+      //svars(c.io.in.bits) = Bits(pixel)
+      poke(c.io.img_in.bits, pixel)
+      poke(c.io.img_in.valid, 1)
+
+      //step(svars, ovars, false)
+      step(1)
+
       // Write debug image out
-      val imgpix = ovars(c.io.img.bits).litValue()
+      //val imgpix = ovars(c.io.img.bits).litValue()
+      val imgpix = peek(c.io.img_out.bits)
+
       for (j <- 0 until n_byte) {
         imgPic.data(3*i+j) = ((imgpix >> (8*j)) & 0xFF).toByte
       }
 
       // Color pixel red if outputting valid coord, grey otherwise
-      val coord = ovars(c.io.coord.valid).litValue()
-      val coordpix = if (coord.testBit(0)) 0xFF0000 else 0x808080
+      //val coord = ovars(c.io.coord.valid).litValue()
+      //val coordpix = if (coord.testBit(0)) 0xFF0000 else 0x808080
+      val coordpix = if (peek(c.io.coord.valid)==1) 0xFF0000 else 0x808080
+      
       for (j <- 0 until n_byte) {
         coordPic.data(3*i+j) = ((coordpix >> (8*j)) & 0xFF).toByte
       }
@@ -96,7 +93,8 @@ class ScaleSpaceExtremaTests(c: ScaleSpaceExtrema, val infilename: String,
     imgPic.write(imgfilename)
     coordPic.write(coordfilename)
 
-    true
-  }
+  //  true
+  ok = true
+  //}
 }
 

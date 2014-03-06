@@ -53,11 +53,10 @@ class SymmetricFIR(delay: Int, line: Int, n_tap: Int, dwidth : Int = 8,
   
   for (tap_idx <- 0 until mid_tap - 1) {
     // Low-side paths
-    terms(tap_idx) := Mux(line_count > tap_idx, mul_out(tap_idx), UInt(0))
+    terms(tap_idx) := Mux(line_counter.io.count > UInt(tap_idx), mul_out(tap_idx), UInt(0))
 
     // High-side paths (include delays)
-    terms(n_tap-tap_idx-1) := Mux(line_count < UInt(line-tap_idx-1),
-      ShiftRegister(mul_out(tap_idx), (n_tap-(2*tap_idx)-1)*delay, io.in.valid))
+    terms(n_tap-tap_idx-1) := Mux(line_counter.io.count < UInt(line-tap_idx-1), ShiftRegister(mul_out(tap_idx), (n_tap-(2*tap_idx)-1)*delay, io.in.valid), UInt(0))
   }
 
   val sum = UInt(width = 2*dwidth)
