@@ -4,3 +4,4 @@ emulator
 verilog
 data
 *.swp
+*.vcd

@@ -1,12 +1,12 @@
 SBT          := sbt
-CHISEL_FLAGS :=
+CHISEL_FLAGS := --vcd --debug
 
 executables := $(filter-out main Image,\
             $(notdir $(basename $(wildcard source/*.scala))))
 
 exec_outs    := $(addprefix emulator/, $(addsuffix .out, $(executables)))
 
-top: emulator/ScaleSpaceExtrema.out
+top: emulator/ScaleSpaceExtrema.out data/in.im24
 
 outs: $(exec_outs)
 
@@ -19,6 +19,7 @@ check: emulator/outputs.xml
 clean:
 	-rm -f emulator/* verilog/*
 	-rm -rf project target
+	-rm -f *.vcd
 
 verilog: $(addprefix verilog/, $(addsuffix .v, $(executables)))
 
