@@ -4,31 +4,31 @@ CHISEL_FLAGS :=
 executables := $(filter-out main Image,\
             $(notdir $(basename $(wildcard source/*.scala))))
 
-tut_outs    := emulator/$(addsuffix .out, $(executables))
+exec_outs    := $(addprefix emulator/, $(addsuffix .out, $(executables)))
 
 top: emulator/ScaleSpaceExtrema.out
 
-emulator: $(tut_outs)
+outs: $(exec_outs)
 
 all: emulator verilog
 
 exec: $(executables)
 
-check: test-solutions.xml
+check: emulator/outputs.xml
 
 clean:
-	-rm -f emulator/*.h emulator/*.cpp emulator/*.o emulator/*.out verilog/*.v $(executables)
+	-rm -f emulator/* verilog/*
 	-rm -rf project target
 
-verilog: verilog/$(addsuffix .v, $(executables))
+verilog: $(addprefix verilog/, $(addsuffix .v, $(executables)))
 
-test-solutions.xml: $(tut_outs)
-	$(top_srcdir)/sbt/check $(tut_outs) > $@
+emulator/outputs.xml: $(exec_outs)
+	./tools/check $(exec_outs) > $@
 
 emulator/%.out: source/*.scala
 	$(SBT) "run $(notdir $(basename $@)) --genHarness --compile --test --backend c --targetDir emulator $(CHISEL_FLAGS)" | tee $@
 
-verilog/%.v: source/%.scala
-	$(SBT) "run $(notdir $(basename $<)) --genHarness --backend v --targetDir verilog $(CHISEL_FLAGS)"
+verilog/%.v: source/*.scala
+	$(SBT) "run $(notdir $(basename $@)) --genHarness --backend v --targetDir verilog $(CHISEL_FLAGS)"
 
-.PHONY: all check clean emulator verilog top
+.PHONY: top outs all exec check clean verilog
