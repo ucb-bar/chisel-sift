@@ -7,15 +7,45 @@ import scala.collection.mutable.HashMap
 class ScaleSpaceExtrema(it: ImageType, n_oct: Int = 2) extends Module {
   val io = new Bundle {
     val img_in = Valid(UInt(width=it.dwidth)).flip
-    val img_out = Valid(UInt(width=it.dwidth))
     val coord = Valid(new Coord(it))
+    
+    val select = Decoupled(UInt(width=8)).flip
+    val img_out = Valid(UInt(width=it.dwidth))
+  }
+
+  // Count pixels output
+  val ic = Module(new ImageCounter(it))
+  io.coord.bits := ic.io.out
+  ic.io.en := io.img_out.fire()
+
+  // Allow changing source when stream is not in process
+  val select_ready = Reg(init = Bool(true))
+  io.select.ready := select_ready
+  when(io.img_out.fire() & ic.io.top) {
+    select_ready := Bool(true)
+  }
+  when(io.img_in.valid) {
+    select_ready := Bool(false)
+  }
+
+  // Just generate a pattern on valid for now
+  io.coord.valid := ic.io.out.col > ic.io.out.row
+
+  // Latch output image source when allowed
+  val select_r = Reg(init = UInt(0,8))
+  when (io.select.fire()) {
+    select_r := io.select.bits
   }
 
   val oct = Range(0, n_oct).map(i => Module(new Octave(it.subsample(i),i)))
 
-  for (i <- 1 until n_oct) {
-    oct(i).io.img_in <> oct(i-1).io.next_img_out
-    oct(i).io.img_out <> oct(i-1).io.next_img_in
+  for (i <- 0 until n_oct) {
+    oct(i).io.select := select_r
+    
+    if (i != 0) {
+      oct(i).io.img_in <> oct(i-1).io.next_img_out
+      oct(i).io.img_out <> oct(i-1).io.next_img_in
+    }
   }
   
   if (it.dwidth == 8)
@@ -31,6 +61,8 @@ class ScaleSpaceExtrema(it: ImageType, n_oct: Int = 2) extends Module {
   }
 
   oct(0).io.img_in.valid := io.img_in.valid
+
+  oct(0).io.img_out.ready := Bool(true)
   
   if (it.dwidth == 8)
     io.img_out.bits := oct(n_oct-1).io.img_out.bits
@@ -56,6 +88,11 @@ class ScaleSpaceExtremaTests(c: ScaleSpaceExtrema, val infilename: String,
 
     //svars(c.io.in.valid) = Bool(true)
 
+    // Select debug image stream
+    poke(c.io.select.bits, 0)
+    poke(c.io.select.valid, 1)
+    step(1)
+
     for (i <- 0 until inPic.data.length/n_byte) {
       var pixel = 0
       for (j <- 0 until n_byte) {
@@ -68,7 +105,7 @@ class ScaleSpaceExtremaTests(c: ScaleSpaceExtrema, val infilename: String,
       //svars(c.io.in.bits) = Bits(pixel)
       poke(c.io.img_in.bits, pixel)
       poke(c.io.img_in.valid, 1)
-
+      
       //step(svars, ovars, false)
       step(1)
 

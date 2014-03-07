@@ -15,36 +15,12 @@ class Octave(it: ImageType, index: Int, n_ext: Int = 2, next_tap: Int = 2)
     val coord = Valid(new Coord(it))
     
     // Debug image selection and output
-    val select = Decoupled(UInt(width=8)).flip
+    val select = UInt(INPUT,width=8)
     val img_out = Decoupled(UInt(width=it.dwidth))
 
     // Chain output and input
     val next_img_in = Decoupled(UInt(width=it.dwidth)).flip
     val next_img_out = Valid(UInt(width=it.dwidth))
-  }
-
-  // Count pixels output
-  val ic = Module(new ImageCounter(it))
-  io.coord.bits := ic.io.out
-  ic.io.en := io.img_out.fire()
-
-  // Just generate a pattern on valid for now
-  io.coord.valid := ic.io.out.col > ic.io.out.row
-
-  // Allow changing source when stream is not in process
-  val select_ready = Reg(init = Bool(true))
-  io.select.ready := select_ready
-  when(io.img_out.fire() & ic.io.top) {
-    select_ready := Bool(true)
-  }
-  when(io.img_in.valid) {
-    select_ready := Bool(false)
-  }
-
-  // Latch output image source when allowed
-  val select_r = Reg(init = UInt(0,8))
-  when (io.select.fire()) {
-    select_r := io.select.bits
   }
 
   // Downsampler
@@ -79,32 +55,74 @@ class Octave(it: ImageType, index: Int, n_ext: Int = 2, next_tap: Int = 2)
 
   // Debug image output stream selection
   // When our index is the active source, select an internal stream
-  when(select_r(7,4) === UInt(index)) {
+  when(io.select(7,4) === UInt(index)) {
     // 0 is bypasses down/upsample, helps debug tap select
-    when(select_r(3,0) === UInt(0)) {
-      io.img_out <> io.img_in
+    when(io.select(3,0) === UInt(0)) {
+      //io.img_out <> io.img_in
+      io.img_out.valid := io.img_in.valid
+      io.img_out.bits := io.img_in.bits
     // Otherwise use output from upsampler
     } .otherwise {
-      io.img_out <> us.io.out
+      //io.img_out <> us.io.out
+      io.img_out.valid := us.io.out.valid
+      io.img_out.bits := us.io.out.bits
+      us.io.out.ready := io.img_out.ready
     }
 
-    // Default input to upsampler is downsampler, includes select_r = 1
-    us.io.in <> ds.io.out
-    switch(select_r(3,0)) {
-      is(UInt(2))   {us.io.in <> gauss(0).io.out}
-      is(UInt(3))   {us.io.in <> gauss(1).io.out}
-      is(UInt(4))   {us.io.in <> diff(0).io.out}
-      is(UInt(5))   {us.io.in <> gauss(2).io.out}
-      is(UInt(6))   {us.io.in <> diff(1).io.out}
-      is(UInt(7))   {us.io.in <> gauss(3).io.out}
-      is(UInt(8))   {us.io.in <> diff(2).io.out}
-      is(UInt(9))   {us.io.in <> gauss(4).io.out}
-      is(UInt(10))  {us.io.in <> diff(3).io.out}
+    // Default input to upsampler is downsampler, includes select = 1
+    //us.io.in <> ds.io.out
+    us.io.in.valid := ds.io.out.valid
+    us.io.in.bits := ds.io.out.bits
+
+    switch(io.select(3,0)) {
+      is(UInt(2)) {
+        //us.io.in <> gauss(0).io.out
+        us.io.in.valid := gauss(0).io.out.valid
+        us.io.in.bits := gauss(0).io.out.bits}
+      is(UInt(3)) {
+        //us.io.in <> gauss(1).io.out
+        us.io.in.valid := gauss(1).io.out.valid
+        us.io.in.bits := gauss(1).io.out.bits}
+      is(UInt(4)) {
+        //us.io.in <> diff(0).io.out
+        us.io.in.valid := diff(0).io.out.valid
+        us.io.in.bits := diff(0).io.out.bits}
+      is(UInt(5)) {
+        //us.io.in <> gauss(2).io.out
+        us.io.in.valid := gauss(1).io.out.valid
+        us.io.in.bits := gauss(1).io.out.bits}
+      is(UInt(6)) {
+        //us.io.in <> diff(1).io.out
+        us.io.in.valid := diff(1).io.out.valid
+        us.io.in.bits := diff(1).io.out.bits}
+      is(UInt(7)) {
+        //us.io.in <> gauss(3).io.out
+        us.io.in.valid := gauss(3).io.out.valid
+        us.io.in.bits := gauss(3).io.out.bits}
+      is(UInt(8)) {
+        //us.io.in <> diff(2).io.out
+        us.io.in.valid := diff(2).io.out.valid
+        us.io.in.bits := diff(2).io.out.bits}
+      is(UInt(9)) {
+        //us.io.in <> gauss(4).io.out
+        us.io.in.valid := gauss(4).io.out.valid
+        us.io.in.bits := gauss(4).io.out.bits}
+      is(UInt(10)) {
+        //us.io.in <> diff(3).io.out
+        us.io.in.valid := diff(3).io.out.valid
+        us.io.in.bits := diff(3).io.out.bits}
     }
 
   // Otherwise select stream from next octave and upsample it
   } .otherwise {
-    us.io.in <> io.next_img_in
-    io.img_out <> us.io.out
+    //us.io.in <> io.next_img_in
+    us.io.in.valid := io.next_img_in.valid
+    us.io.in.bits := io.next_img_in.bits
+    io.next_img_in.ready := us.io.in.ready
+
+    //io.img_out <> us.io.out
+    io.img_out.valid := us.io.out.valid
+    io.img_out.bits := us.io.out.bits
+    us.io.out.ready := io.img_out.ready
   }
 }

@@ -6,7 +6,7 @@ executables := $(filter-out main Image,\
 
 tut_outs    := emulator/$(addsuffix .out, $(executables))
 
-top: emulator/ScaleSpaceExtrema.out source/*.scala
+top: emulator/ScaleSpaceExtrema.out
 
 emulator: $(tut_outs)
 
@@ -25,8 +25,8 @@ verilog: verilog/$(addsuffix .v, $(executables))
 test-solutions.xml: $(tut_outs)
 	$(top_srcdir)/sbt/check $(tut_outs) > $@
 
-emulator/%.out: source/%.scala
-	$(SBT) "run $(notdir $(basename $<)) --genHarness --compile --test --backend c --targetDir emulator $(CHISEL_FLAGS)" | tee $@
+emulator/%.out: source/*.scala
+	$(SBT) "run $(notdir $(basename $@)) --genHarness --compile --test --backend c --targetDir emulator $(CHISEL_FLAGS)" | tee $@
 
 verilog/%.v: source/%.scala
 	$(SBT) "run $(notdir $(basename $<)) --genHarness --backend v --targetDir verilog $(CHISEL_FLAGS)"
