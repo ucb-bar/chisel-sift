@@ -6,7 +6,9 @@ executables := $(filter-out main Image,\
 
 exec_outs    := $(addprefix emulator/, $(addsuffix .out, $(executables)))
 
-top: emulator/ScaleSpaceExtrema.out data/in.im24
+top: data/out.im24
+
+data/out.im24: data/in.im24 emulator/ScaleSpaceExtrema.out
 
 outs: $(exec_outs)
 

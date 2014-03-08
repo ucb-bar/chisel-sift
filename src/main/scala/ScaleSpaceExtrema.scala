@@ -13,9 +13,6 @@ class ScaleSpaceExtrema(it: ImageType, n_oct: Int = 2) extends Module {
     val img_out = Valid(UInt(width=it.dwidth))
   }
   
-  val cycle = Reg(init = UInt(0,32))
-  cycle := cycle + UInt(1)
-
   // Count pixels output
   val ic = Module(new ImageCounter(it))
   io.coord.bits := ic.io.out
@@ -90,41 +87,59 @@ class ScaleSpaceExtremaTests(c: ScaleSpaceExtrema, val infilename: String,
   val n_pixel = inPic.w * inPic.h
 
   // Select debug image stream
-  poke(c.io.select.bits, 0)
+  poke(c.io.select.bits, 0x01)
   poke(c.io.select.valid, 1)
   step(1)
-
   poke(c.io.img_in.valid, 0)
-  
+  step(1)
+
   println("w=" + inPic.w + " h=" + inPic.h + " d=" + inPic.d)
   println("out length=" + imgPic.data.length)
   
-  for (i <- 0 until n_pixel) {
-    var pixel = 0
-    for (j <- 0 until n_byte) {
-      pixel = pixel << 8
-      val rin = inPic.data(3*i+j)
-      val  in = if (rin < 0) 256 + rin else rin
-      pixel += in
+  var in_idx = 0
+  var out_idx = 0
+  var cycle = 0
+  
+  var triplet = 0
+  var pixel = 0
+
+  while ((cycle < (n_pixel + 1000)) && 
+    (in_idx < n_pixel || out_idx < n_pixel)) {
+    
+    if (in_idx < n_pixel) {
+      triplet = 0
+      for (j <- 0 until n_byte) {
+        pixel = inPic.data(3*in_idx+j)
+        if (pixel < 0) pixel += 256
+        triplet += pixel << (8*j)
+      }
+      
+      poke(c.io.img_in.bits, triplet)
+      poke(c.io.img_in.valid, 1)
+
+      in_idx += 1
+    } else {
+      poke(c.io.img_in.valid, 0)
     }
-    
-    poke(c.io.img_in.bits, pixel)
-    poke(c.io.img_in.valid, 1)
-    
+
     step(1)
+    cycle += 1
 
-    // Write debug image out
-    val imgpix = peek(c.io.img_out.bits)
-    
-    for (j <- 0 until n_byte) {
-      imgPic.data((3*i)+j) = ((imgpix >> (8*j)) & 0xFF).toByte
-    }
+    if(out_idx < n_pixel && peek(c.io.img_out.valid)==1) {
+      // Write debug image out
+      val out_triplet = peek(c.io.img_out.bits)
 
-    // Color pixel red if outputting valid coord, grey otherwise
-    val coordpix = if (peek(c.io.coord.valid)==1) 0xFF0000 else 0x808080
-    
-    for (j <- 0 until n_byte) {
-      coordPic.data(3*i+j) = ((coordpix >> (8*j)) & 0xFF).toByte
+      for (j <- 0 until n_byte) {
+        imgPic.data((3*out_idx)+j) = ((out_triplet >> (8*j)) & 0xFF).toByte
+      }
+
+      // Color pixel red if outputting valid coord, grey otherwise
+      val coordpix = if (peek(c.io.coord.valid)==1) 0xFF0000 else 0x808080  
+      for (j <- 0 until n_byte) {
+        coordPic.data(3*out_idx+j) = ((coordpix >> (8*j)) & 0xFF).toByte
+      }
+
+      out_idx += 1
     }
   }
   

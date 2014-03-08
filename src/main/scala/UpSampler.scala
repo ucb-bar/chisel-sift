@@ -17,7 +17,7 @@ class UpSampler(it: ImageType) extends Module{
  
   val maybe_full = Reg(init = Bool(false))
   val row_in_done = Reg(init = Bool(false))
-  val row_out_done = Reg(init = Bool(false))
+  val row_out_done = Reg(init = Bool(true))
 
   val ptr_match = in_idx.io.count === out_idx
   
@@ -27,6 +27,8 @@ class UpSampler(it: ImageType) extends Module{
   
   val full = Mux(duplicate_row, Bool(true), ptr_match && maybe_full)
 
+  io.out.bits := buf(out_idx)
+
   when(io.in.fire() != io.out.fire()) {
     maybe_full := io.in.fire()
   }
@@ -35,16 +37,20 @@ class UpSampler(it: ImageType) extends Module{
     row_out_done := ~row_out_done
   }
 
-  when(in_idx.io.top && io.in.fire()) {
-    row_in_done := ~row_in_done
+  when(io.in.fire()) {
+    when(in_idx.io.top) {
+      row_in_done := Bool(true)
+    } .otherwise {
+      row_in_done := Bool(false)
+    }
   }
 
   out_col.io.en := io.out.fire()
 
-  io.in.ready := !full
-  io.out.valid := !empty
+  in_idx.io.en := io.in.fire()
 
-  io.out.bits := buf(out_idx)
+  io.in.ready := !full || (duplicate_row && out_col.io.top)
+  io.out.valid := !empty
 
   when(io.in.fire()) {
     buf(in_idx.io.count) := io.in.bits

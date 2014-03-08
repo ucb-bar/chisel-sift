@@ -58,69 +58,55 @@ class Octave(it: ImageType, index: Int, n_ext: Int = 2, next_tap: Int = 2)
   when(io.select(7,4) === UInt(index)) {
     // 0 is bypasses down/upsample, helps debug tap select
     when(io.select(3,0) === UInt(0)) {
-      //io.img_out <> io.img_in
       io.img_out.valid := io.img_in.valid
       io.img_out.bits := io.img_in.bits
     // Otherwise use output from upsampler
     } .otherwise {
-      //io.img_out <> us.io.out
       io.img_out.valid := us.io.out.valid
       io.img_out.bits := us.io.out.bits
       us.io.out.ready := io.img_out.ready
     }
 
     // Default input to upsampler is downsampler, includes select = 1
-    //us.io.in <> ds.io.out
     us.io.in.valid := ds.io.out.valid
     us.io.in.bits := ds.io.out.bits
 
     switch(io.select(3,0)) {
       is(UInt(2)) {
-        //us.io.in <> gauss(0).io.out
         us.io.in.valid := gauss(0).io.out.valid
         us.io.in.bits := gauss(0).io.out.bits}
       is(UInt(3)) {
-        //us.io.in <> gauss(1).io.out
         us.io.in.valid := gauss(1).io.out.valid
         us.io.in.bits := gauss(1).io.out.bits}
       is(UInt(4)) {
-        //us.io.in <> diff(0).io.out
         us.io.in.valid := diff(0).io.out.valid
         us.io.in.bits := diff(0).io.out.bits}
       is(UInt(5)) {
-        //us.io.in <> gauss(2).io.out
         us.io.in.valid := gauss(1).io.out.valid
         us.io.in.bits := gauss(1).io.out.bits}
       is(UInt(6)) {
-        //us.io.in <> diff(1).io.out
         us.io.in.valid := diff(1).io.out.valid
         us.io.in.bits := diff(1).io.out.bits}
       is(UInt(7)) {
-        //us.io.in <> gauss(3).io.out
         us.io.in.valid := gauss(3).io.out.valid
         us.io.in.bits := gauss(3).io.out.bits}
       is(UInt(8)) {
-        //us.io.in <> diff(2).io.out
         us.io.in.valid := diff(2).io.out.valid
         us.io.in.bits := diff(2).io.out.bits}
       is(UInt(9)) {
-        //us.io.in <> gauss(4).io.out
         us.io.in.valid := gauss(4).io.out.valid
         us.io.in.bits := gauss(4).io.out.bits}
       is(UInt(10)) {
-        //us.io.in <> diff(3).io.out
         us.io.in.valid := diff(3).io.out.valid
         us.io.in.bits := diff(3).io.out.bits}
     }
 
   // Otherwise select stream from next octave and upsample it
   } .otherwise {
-    //us.io.in <> io.next_img_in
     us.io.in.valid := io.next_img_in.valid
     us.io.in.bits := io.next_img_in.bits
     io.next_img_in.ready := us.io.in.ready
 
-    //io.img_out <> us.io.out
     io.img_out.valid := us.io.out.valid
     io.img_out.bits := us.io.out.bits
     us.io.out.ready := io.img_out.ready
