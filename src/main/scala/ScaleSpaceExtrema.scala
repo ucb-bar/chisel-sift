@@ -147,7 +147,8 @@ class ScaleSpaceExtremaTests(c: ScaleSpaceExtrema, val infilename: String,
   poke(c.io.img_in.valid,0)
   
   step(10)
-
+  
+  println("InIdx: " + in_idx + ", OutIdx: " + out_idx + ", Cycle: " + cycle)
   imgPic.write(imgfilename)
   coordPic.write(coordfilename)
 
