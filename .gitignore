@@ -2,6 +2,8 @@ project
 target
 emulator
 verilog
-data
+data/in.im24
+data/out.im24
+data/coord.im24
 *.swp
 *.vcd
