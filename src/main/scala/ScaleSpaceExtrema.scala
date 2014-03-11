@@ -62,6 +62,7 @@ class ScaleSpaceExtrema(it: ImageType, n_oct: Int = 2) extends Module {
       io.img_in.bits(15,8) + io.img_in.bits(7,0))
     val div = (UInt(16)*sum) + (UInt(4)*sum) + sum
     oct(0).io.img_in.bits := (div >> UInt(6)) + UInt(4)
+    //oct(0).io.img_in.bits := io.img_in.bits(7,0)
   }
 
   oct(0).io.img_in.valid := io.img_in.valid
@@ -87,7 +88,7 @@ class ScaleSpaceExtremaTests(c: ScaleSpaceExtrema, val infilename: String,
   val n_pixel = inPic.w * inPic.h
 
   // Select debug image stream
-  poke(c.io.select.bits, 0x01)
+  poke(c.io.select.bits, 0x02)
   poke(c.io.select.valid, 1)
   step(1)
   poke(c.io.img_in.valid, 0)
