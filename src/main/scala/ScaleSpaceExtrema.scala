@@ -62,7 +62,7 @@ class ScaleSpaceExtrema(it: ImageType, n_oct: Int = 1) extends Module {
     oct(0).io.img_in.bits := (div >> UInt(6)) + UInt(4)
     
     // Uncomment to only select red channel for debugging
-    oct(0).io.img_in.bits := io.img_in.bits(7,0)
+    //oct(0).io.img_in.bits := io.img_in.bits(7,0)
   }
 
   oct(0).io.img_in.valid := io.img_in.valid
@@ -89,7 +89,7 @@ class ScaleSpaceExtremaTests(c: ScaleSpaceExtrema, val infilename: String,
   val n_pixel = inPic.w * inPic.h
 
   // Select debug image stream
-  poke(c.io.select.bits, 0x02)
+  poke(c.io.select.bits, 0x03)
   poke(c.io.select.valid, 1)
   step(1)
   poke(c.io.img_in.valid, 0)
@@ -105,7 +105,7 @@ class ScaleSpaceExtremaTests(c: ScaleSpaceExtrema, val infilename: String,
   var triplet = 0
   var pixel = 0
 
-  while ((timeout < 3*inPic.w) && 
+  while ((timeout < 1000) && 
     (in_idx < n_pixel || out_idx < n_pixel)) {
     
     if (in_idx < n_pixel) {
