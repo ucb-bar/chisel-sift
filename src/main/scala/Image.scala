@@ -1,8 +1,6 @@
 package SIFT
 
 import Chisel._
-import Node._
-import scala.collection.mutable.HashMap
 import scala.io.Source
 import java.io.FileOutputStream
 import java.io.File

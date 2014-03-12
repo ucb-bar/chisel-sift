@@ -1,8 +1,6 @@
 package SIFT
 
 import Chisel._
-import Node._
-import scala.collection.mutable.HashMap
 
 class ScaleSpaceExtrema(it: ImageType, n_oct: Int = 1) extends Module {
   val io = new Bundle {
