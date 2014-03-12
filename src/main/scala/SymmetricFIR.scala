@@ -16,7 +16,7 @@ object StdCoeff {
   * coeff: coefficients of symmetric FIR filter, listed from outer to center
   */
 class SymmetricFIR(delay: Int, line: Int, n_tap: Int, dwidth : Int = 8,
-  coeff: List[UInt] = StdCoeff.CenterKernel) extends Module{
+  coeff: List[UInt] = StdCoeff.UnityKernel) extends Module{
   val io = new Bundle {
     val in = Decoupled(UInt(width = dwidth)).flip
     val out = Decoupled(UInt(width = dwidth))
@@ -30,53 +30,107 @@ class SymmetricFIR(delay: Int, line: Int, n_tap: Int, dwidth : Int = 8,
 
   // Count (zero index - 1) of middle tap (number of pathways)
   val mid_tap = (n_tap+1)/2
-  
-  // Delay from first to middle tap
-  val tap_delay = (mid_tap-1) * delay
-  
-  val advance_taps = Bool()
 
-  val taps_valid = Bool()
+  // Delay from first input to terms arriving at adder
+  val term_delay = (mid_tap-1) * delay + mul_delay
+  
+  // Delay from first element in to first element out
+  val total_delay = term_delay + sum_delay
+  
+  println(
+    "delay:" + delay + 
+    ", term_delay:" + term_delay + 
+    ", total:" + total_delay)
+
+  //val advance = Mux(state === s_prime, io.in.valid, io.out.ready)
+  val advance = Bool()
 
   // Count inputs until pipeline is primed
   val in_counter = Module(new Counter(UInt(delay*line-1)))
-  in_counter.io.en := io.in.valid
+  in_counter.io.en := io.in.fire()
 
-  // Counter for line to disable taps when at edge
-  val tap_counter = Module(new Counter(UInt(delay*line-1)))
-  tap_counter.io.en := taps_valid
-
-  // prime is true when filling the first few elements of the pipeline
-  val prime = (tap_counter.io.count === UInt(0) & 
-    in_counter.io.count < UInt(tap_delay))
+  // Counter for line to disable terms when at edges
+  val term_en = Reg(init = Bool(false))
   
-  io.in.ready := prime || advance_taps
+  val term_counter = Module(new Counter(UInt(delay*line-1)))
+  term_counter.io.en := term_en & advance
+  
+  when((in_counter.io.count === UInt(term_delay-1)) & advance) {
+    term_en := Bool(true)
+  } .elsewhen (term_counter.io.top & advance) {
+    term_en := Bool(false)
+  }
 
-  taps_valid := Mux(prime, Bool(false), advance_taps)
+  // Count outputs
+  val out_counter = Module(new Counter(UInt(delay*line-1)))
+  out_counter.io.en := io.out.fire()
 
-  // flush is true when we have received all elements of a line but they 
-  // have not been pushed out (and a new line hasn't started)
-  val flush =  in_counter.io.count === UInt(0) & tap_counter.io.count != UInt(0)
+  // State machine governing pipeline behavior
+  val s_prime :: s_pipe :: s_flush :: Nil = Enum(UInt(),3)
+  
+  val state = Reg(init = s_prime)
 
-  advance_taps := io.out.ready && (io.in.valid || flush)
+  // Default to s_prime behavior
+  io.in.ready := Bool(true)
+  io.out.valid := Bool(false)
+  advance := io.in.valid
 
-  def tap_delays[T <: Data](x: T, n: Int): List[T] = {
+  switch (state) {
+    is (s_prime) {
+      io.in.ready := Bool(true)
+      io.out.valid := Bool(false)
+      advance := io.in.valid
+
+      when ((in_counter.io.count === UInt (total_delay-1)) & advance) {
+        state := s_pipe
+      }}
+    is (s_pipe) {
+      io.in.ready := io.out.ready
+      io.out.valid := io.in.valid
+      advance := io.in.valid & io.out.ready
+      
+      when (out_counter.io.top & advance) {
+        state := s_prime
+      } .elsewhen (in_counter.io.top & advance) {
+        state := s_flush
+      }}
+    is (s_flush) {
+      io.in.ready := Bool(true)
+      io.out.valid := Bool(true)
+      advance := io.out.ready
+
+      when (out_counter.io.top & advance) {
+        state := s_prime
+      } .elsewhen (io.in.valid) {
+        state := s_pipe
+      }}
+  }
+  
+  /*def tap_delays[T <: Data](x: T, n: Int): List[T] = {
     if(n <= 1) 
       List(x) 
     else 
-      x :: tap_delays(ShiftRegister(x, delay, advance_taps), n-1)
-  }
+      x :: tap_delays(ShiftRegister(x, delay, advance), n-1)
+  }*/
   
+  //val taps = tap_delays(io.in.bits, mid_tap)
+
+  val mul_in = Vec.fill(mid_tap) {UInt(width = dwidth)}
+  mul_in(0) := io.in.bits
+
+  for (i <- 1 until mid_tap) {
+    //mul_in(i) := taps(i)
+    mul_in(i) := ShiftRegister(mul_in(i-1), delay, advance)
+  }
+
   // Element-wise multiplication of coeff and delay elements
-  val mul_out = (coeff, tap_delays(io.in.bits, mid_tap)).zipped.map( _ * _ ) 
+  val mul_out = (coeff,mul_in).zipped.map( _ * _ )
   
   // Add multiplier retiming registers
   val mul_out_d = Vec.fill(mid_tap) {UInt(width = 2*dwidth)}
   for (i <- 0 until mid_tap) {
-    mul_out_d(i) := ShiftRegister(mul_out(i), mul_delay, advance_taps)
-  }
-  
-  val mul_valid = ShiftRegister(taps_valid, mul_delay, advance_taps)
+    mul_out_d(i) := ShiftRegister(mul_out(i), mul_delay, advance)
+  } 
 
   // Collect all terms to sum
   val terms = Vec.fill(n_tap) { UInt(width=2*dwidth) }
@@ -85,26 +139,21 @@ class SymmetricFIR(delay: Int, line: Int, n_tap: Int, dwidth : Int = 8,
   for (tap_idx <- 0 until mid_tap - 1) {
     // Low-side muxes
     terms(tap_idx) := Mux(
-      ShiftRegister(
-        tap_counter.io.count > UInt(tap_idx*delay),
-        mul_delay, advance_taps), 
-      mul_out_d(tap_idx), UInt(0))
+      term_counter.io.count > UInt(tap_idx*delay), 
+      mul_out_d(tap_idx),
+      UInt(0))
 
     // High-side muxes and delays
     terms(n_tap-tap_idx-1) := Mux(
-      ShiftRegister(
-        tap_counter.io.count < UInt((line-tap_idx-1)*delay),
-        mul_delay, advance_taps),
+      term_counter.io.count < UInt((line-tap_idx-1)*delay),
       ShiftRegister(
         mul_out_d(tap_idx),
         (n_tap-(2*tap_idx)-1)*delay,
-        advance_taps),
+        advance),
       UInt(0))
   }
 
   val sum = terms.reduceRight( _ + _ )
-  io.out.bits := ShiftRegister(sum(15,8), sum_delay, advance_taps)
-  
-  val sum_valid = ShiftRegister(mul_valid, sum_delay, advance_taps)
-  io.out.valid := sum_valid
+  val sum_d = ShiftRegister(sum(15,8), sum_delay, advance) 
+  io.out.bits := sum_d
 }

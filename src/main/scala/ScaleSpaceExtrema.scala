@@ -4,7 +4,7 @@ import Chisel._
 import Node._
 import scala.collection.mutable.HashMap
 
-class ScaleSpaceExtrema(it: ImageType, n_oct: Int = 2) extends Module {
+class ScaleSpaceExtrema(it: ImageType, n_oct: Int = 1) extends Module {
   val io = new Bundle {
     val img_in = Valid(UInt(width=it.dwidth)).flip
     val coord = Valid(new Coord(it))
@@ -58,11 +58,11 @@ class ScaleSpaceExtrema(it: ImageType, n_oct: Int = 2) extends Module {
   else {
     // Approximate (r+b+g)/3 as (r+b+g)*(16 + 4 + 1)/64
     // Also offset by 4 to allow for colorspace mapping
-    val sum = (Cat(UInt("h00"), io.img_in.bits(23,16)) + 
+    /*val sum = (Cat(UInt("h00"), io.img_in.bits(23,16)) + 
       io.img_in.bits(15,8) + io.img_in.bits(7,0))
     val div = (UInt(16)*sum) + (UInt(4)*sum) + sum
-    oct(0).io.img_in.bits := (div >> UInt(6)) + UInt(4)
-    //oct(0).io.img_in.bits := io.img_in.bits(7,0)
+    oct(0).io.img_in.bits := (div >> UInt(6)) + UInt(4)*/
+    oct(0).io.img_in.bits := io.img_in.bits(7,0)
   }
 
   oct(0).io.img_in.valid := io.img_in.valid
@@ -99,12 +99,12 @@ class ScaleSpaceExtremaTests(c: ScaleSpaceExtrema, val infilename: String,
   
   var in_idx = 0
   var out_idx = 0
-  var cycle = 0
+  var timeout = 0
   
   var triplet = 0
   var pixel = 0
 
-  while ((cycle < (n_pixel + 1000)) && 
+  while ((timeout < 3*inPic.w) && 
     (in_idx < n_pixel || out_idx < n_pixel)) {
     
     if (in_idx < n_pixel) {
@@ -119,12 +119,13 @@ class ScaleSpaceExtremaTests(c: ScaleSpaceExtrema, val infilename: String,
       poke(c.io.img_in.valid, 1)
 
       in_idx += 1
+      timeout = 0
     } else {
       poke(c.io.img_in.valid, 0)
     }
 
     step(1)
-    cycle += 1
+    timeout += 1
 
     if(out_idx < n_pixel && peek(c.io.img_out.valid)==1) {
       // Write debug image out
@@ -141,6 +142,7 @@ class ScaleSpaceExtremaTests(c: ScaleSpaceExtrema, val infilename: String,
       }
 
       out_idx += 1
+      timeout = 0
     }
   }
   
@@ -148,7 +150,7 @@ class ScaleSpaceExtremaTests(c: ScaleSpaceExtrema, val infilename: String,
   
   step(10)
   
-  println("InIdx: " + in_idx + ", OutIdx: " + out_idx + ", Cycle: " + cycle)
+  println("InIdx: " + in_idx + ", OutIdx: " + out_idx + ", Cycle: " + timeout)
   imgPic.write(imgfilename)
   coordPic.write(coordfilename)
 

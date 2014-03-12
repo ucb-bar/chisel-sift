@@ -4,9 +4,11 @@ import Chisel._
 
 class DownSampler(it: ImageType) extends Module {
   val io = new Bundle {
-    val in = Valid(UInt(width=it.dwidth)).flip
+    val in = Decoupled(UInt(width=it.dwidth)).flip
     val out = Decoupled(UInt(width=it.dwidth))
   }
+
+  io.in.ready := Bool(true)
 
   io.out.bits := io.in.bits
 

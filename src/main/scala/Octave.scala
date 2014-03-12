@@ -11,7 +11,7 @@ class Octave(it: ImageType, index: Int, n_ext: Int = 2, next_tap: Int = 2)
   extends Module {
   
   val io = new Bundle {
-    val img_in = Valid(UInt(width=it.dwidth)).flip
+    val img_in = Decoupled(UInt(width=it.dwidth)).flip
     val coord = Valid(new Coord(it))
     
     // Debug image selection and output
@@ -20,35 +20,38 @@ class Octave(it: ImageType, index: Int, n_ext: Int = 2, next_tap: Int = 2)
 
     // Chain output and input
     val next_img_in = Decoupled(UInt(width=it.dwidth)).flip
-    val next_img_out = Valid(UInt(width=it.dwidth))
+    val next_img_out = Decoupled(UInt(width=it.dwidth))
   }
 
   // Downsampler
   val ds = Module(new DownSampler(it))
-  ds.io.in := io.img_in
+  ds.io.in <> io.img_in
 
   val it_div_2 = it.subsample()
 
   // Chain of gaussian blurs
-  val n_gauss = n_ext + 3
+  /*val n_gauss = n_ext + 3
   val gauss = Range(0, n_gauss).map(i => Module(new Gaussian(it_div_2)))
   
-  gauss(0).io.in <> ds.io.out
+  gauss(0).io.in.bits := ds.io.out.bits
+  gauss(0).io.in.valid := ds.io.out.valid*/
 
-  for(i <- 0 until n_gauss) {
-    if (i < n_gauss - 1) {
-      gauss(i+1).io.in.bits := gauss(i).io.out.bits
-      gauss(i+1).io.in.valid := gauss(i).io.out.valid
-      gauss(i).io.out.ready := gauss(i+1).io.in.ready
-    }
-  }
+  val gauss = Module(new Gaussian(it_div_2))
+  gauss.io.in <> ds.io.out
+
+  /*for(i <- 1 until n_gauss) {
+    gauss(i).io.in.bits := gauss(i-1).io.out.bits
+    gauss(i).io.in.valid := gauss(i-1).io.out.valid
+    gauss(i-1).io.out.ready := gauss(i).io.in.ready
+    //gauss(i).io.in <> gauss(i-1).io.out
+  }*/
 
   // This is default, will be overwritten if used for output or diff
-  gauss(n_gauss-1).io.out.ready := Bool(true)
+  //gauss(n_gauss-1).io.out.ready := Bool(true)
 
   //io.next_img_out <> gauss(next_tap).io.out
-  io.next_img_out.bits := gauss(next_tap).io.out.bits
-  io.next_img_out.valid := gauss(next_tap).io.out.valid
+  //io.next_img_out.bits := gauss(next_tap).io.out.bits
+  //io.next_img_out.valid := gauss(next_tap).io.out.valid
 
   // Take difference of gaussian pairs
   /*val n_diff = n_ext + 2
@@ -61,6 +64,10 @@ class Octave(it: ImageType, index: Int, n_ext: Int = 2, next_tap: Int = 2)
 
   // Upsampler
   val us = Module(new UpSampler(it_div_2))
+    us.io.in.valid := gauss.io.out.valid
+    us.io.in.bits := gauss.io.out.bits
+    gauss.io.out.ready := us.io.in.ready
+
 
   // Debug image output stream selection
   // When our index is the active source, select an internal stream
@@ -77,10 +84,10 @@ class Octave(it: ImageType, index: Int, n_ext: Int = 2, next_tap: Int = 2)
     }
 
     // Default input to upsampler is downsampler, includes select = 1
-    us.io.in.valid := ds.io.out.valid
-    us.io.in.bits := ds.io.out.bits
-
-    switch(io.select(3,0)) {
+    //us.io.in.valid := ds.io.out.valid
+    //us.io.in.bits := ds.io.out.bits
+    
+    /*switch(io.select(3,0)) {
       is(UInt(2)) {
         us.io.in.valid := gauss(0).io.out.valid
         us.io.in.bits := gauss(0).io.out.bits
@@ -89,35 +96,35 @@ class Octave(it: ImageType, index: Int, n_ext: Int = 2, next_tap: Int = 2)
         us.io.in.valid := gauss(1).io.out.valid
         us.io.in.bits := gauss(1).io.out.bits
         gauss(1).io.out.ready := us.io.in.ready }
-      /*is(UInt(4)) {
+      is(UInt(4)) {
         us.io.in.valid := diff(0).io.out.valid
         us.io.in.bits := diff(0).io.out.bits
-        diff(0).io.out.ready := us.io.in.ready }*/
+        diff(0).io.out.ready := us.io.in.ready }
       is(UInt(5)) {
         us.io.in.valid := gauss(2).io.out.valid
         us.io.in.bits := gauss(2).io.out.bits
         gauss(2).io.out.ready := us.io.in.ready }
-      /*is(UInt(6)) {
+      is(UInt(6)) {
         us.io.in.valid := diff(1).io.out.valid
         us.io.in.bits := diff(1).io.out.bits
-        diff(1).io.out.ready := us.io.in.ready }*/
+        diff(1).io.out.ready := us.io.in.ready }
       is(UInt(7)) {
         us.io.in.valid := gauss(3).io.out.valid
         us.io.in.bits := gauss(3).io.out.bits
         gauss(3).io.out.ready := us.io.in.ready }
-      /*is(UInt(8)) {
+      is(UInt(8)) {
         us.io.in.valid := diff(2).io.out.valid
         us.io.in.bits := diff(2).io.out.bits
-        diff(2).io.out.ready := us.io.in.ready }*/
+        diff(2).io.out.ready := us.io.in.ready }
       is(UInt(9)) {
         us.io.in.valid := gauss(4).io.out.valid
         us.io.in.bits := gauss(4).io.out.bits
         gauss(4).io.out.ready := us.io.in.ready }
-      /*is(UInt(10)) {
+      is(UInt(10)) {
         us.io.in.valid := diff(3).io.out.valid
         us.io.in.bits := diff(3).io.out.bits
-        diff(3).io.out.ready := us.io.in.ready }*/
-    }
+        diff(3).io.out.ready := us.io.in.ready }
+    }*/
 
   // Otherwise select stream from next octave and upsample it
   } .otherwise {
