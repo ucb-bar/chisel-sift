@@ -106,21 +106,21 @@ class SymmetricFIR(delay: Int, line: Int, n_tap: Int, dwidth : Int = 8,
       }}
   }
   
-  /*def tap_delays[T <: Data](x: T, n: Int): List[T] = {
+  def tap_delays[T <: Data](x: T, n: Int): List[T] = {
     if(n <= 1) 
       List(x) 
     else 
-      x :: tap_delays(ShiftRegister(x, delay, advance), n-1)
-  }*/
+      x :: tap_delays(ShiftRegisterEn(x, delay, advance), n-1)
+  }
   
-  //val taps = tap_delays(io.in.bits, mid_tap)
+  val taps = tap_delays(io.in.bits, mid_tap)
 
   val mul_in = Vec.fill(mid_tap) {UInt(width = dwidth)}
-  mul_in(0) := io.in.bits
+  //mul_in(0) := io.in.bits
 
-  for (i <- 1 until mid_tap) {
-    //mul_in(i) := taps(i)
-    mul_in(i) := ShiftRegister(mul_in(i-1), delay, advance)
+  for (i <- 0 until mid_tap) {
+    mul_in(i) := taps(i)
+    //mul_in(i) := ShiftRegisterEn(mul_in(i-1), delay, advance)
   }
 
   // Element-wise multiplication of coeff and delay elements
@@ -129,31 +129,43 @@ class SymmetricFIR(delay: Int, line: Int, n_tap: Int, dwidth : Int = 8,
   // Add multiplier retiming registers
   val mul_out_d = Vec.fill(mid_tap) {UInt(width = 2*dwidth)}
   for (i <- 0 until mid_tap) {
-    mul_out_d(i) := ShiftRegister(mul_out(i), mul_delay, advance)
+    mul_out_d(i) := ShiftRegisterEn(mul_out(i), mul_delay, advance)
   } 
 
   // Collect all terms to sum
   val terms = Vec.fill(n_tap) { UInt(width=2*dwidth) }
   terms(mid_tap-1) := mul_out_d(mid_tap-1)
+  
+  val term_enable = Vec.fill(n_tap) { Bool() }
+  term_enable(mid_tap-1) := Bool(true)
 
   for (tap_idx <- 0 until mid_tap - 1) {
-    // Low-side muxes
-    terms(tap_idx) := Mux(
-      term_counter.io.count > UInt(tap_idx*delay), 
-      mul_out_d(tap_idx),
-      UInt(0))
+    // n_blocked is the number of terms that should be disabled
+    val n_blocked = mid_tap-tap_idx-1
 
     // High-side muxes and delays
-    terms(n_tap-tap_idx-1) := Mux(
-      term_counter.io.count < UInt((line-tap_idx-1)*delay),
-      ShiftRegister(
+    term_enable(tap_idx) := (
+      term_counter.io.count >= UInt(n_blocked*delay))
+
+    terms(tap_idx) := Mux(
+      term_enable(tap_idx),
+      ShiftRegisterEn(
         mul_out_d(tap_idx),
         (n_tap-(2*tap_idx)-1)*delay,
         advance),
       UInt(0))
+
+    // Low-side muxes
+    term_enable(n_tap-tap_idx-1) := (
+      term_counter.io.count < UInt((line-n_blocked)*delay))
+
+    terms(n_tap-tap_idx-1) := Mux(
+      term_enable(n_tap-tap_idx-1),
+      mul_out_d(tap_idx),
+      UInt(0))
   }
 
   val sum = terms.reduceRight( _ + _ )
-  val sum_d = ShiftRegister(sum(15,8), sum_delay, advance) 
+  val sum_d = ShiftRegisterEn(sum(15,8), sum_delay, advance) 
   io.out.bits := sum_d
 }

@@ -66,3 +66,10 @@ class ImageCounter(it: ImageType) extends Module {
 
   io.top := col_counter.io.top & row_counter.io.top
 }
+
+object ShiftRegisterEn {
+  def apply[T <: Data](in: T, n: Int, en: Bool = Bool(true)): T = {
+    if (n == 1) RegEnable(in, en)
+    else RegEnable(apply(in, n-1, en), en)
+  }
+}
