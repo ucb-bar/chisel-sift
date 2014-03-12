@@ -37,11 +37,6 @@ class SymmetricFIR(delay: Int, line: Int, n_tap: Int, dwidth : Int = 8,
   // Delay from first element in to first element out
   val total_delay = term_delay + sum_delay
   
-  println(
-    "delay:" + delay + 
-    ", term_delay:" + term_delay + 
-    ", total:" + total_delay)
-
   //val advance = Mux(state === s_prime, io.in.valid, io.out.ready)
   val advance = Bool()
 
@@ -106,36 +101,20 @@ class SymmetricFIR(delay: Int, line: Int, n_tap: Int, dwidth : Int = 8,
       }}
   }
   
-  def tap_delays[T <: Data](x: T, n: Int): List[T] = {
-    if(n <= 1) 
-      List(x) 
-    else 
-      x :: tap_delays(ShiftRegisterEn(x, delay, advance), n-1)
-  }
+  // Create tapped delay line of inputs
+  val mul_in = Vec(TapDelayLineEn(io.in.bits, delay, advance, mid_tap))
   
-  val taps = tap_delays(io.in.bits, mid_tap)
-
-  val mul_in = Vec.fill(mid_tap) {UInt(width = dwidth)}
-  //mul_in(0) := io.in.bits
-
-  for (i <- 0 until mid_tap) {
-    mul_in(i) := taps(i)
-    //mul_in(i) := ShiftRegisterEn(mul_in(i-1), delay, advance)
-  }
-
   // Element-wise multiplication of coeff and delay elements
-  val mul_out = (coeff,mul_in).zipped.map( _ * _ )
+  val mul_out = (coeff, mul_in).zipped.map( _ * _ )
   
-  // Add multiplier retiming registers
-  val mul_out_d = Vec.fill(mid_tap) {UInt(width = 2*dwidth)}
-  for (i <- 0 until mid_tap) {
-    mul_out_d(i) := ShiftRegisterEn(mul_out(i), mul_delay, advance)
-  } 
+  // Insert multiplier retiming registers
+  val mul_out_d = Vec(mul_out.map(ShiftRegisterEn(_, mul_delay, advance)))
 
   // Collect all terms to sum
   val terms = Vec.fill(n_tap) { UInt(width=2*dwidth) }
   terms(mid_tap-1) := mul_out_d(mid_tap-1)
-  
+ 
+  // Disable terms at edges of lines
   val term_enable = Vec.fill(n_tap) { Bool() }
   term_enable(mid_tap-1) := Bool(true)
 

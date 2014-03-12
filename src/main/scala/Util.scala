@@ -68,8 +68,20 @@ class ImageCounter(it: ImageType) extends Module {
 }
 
 object ShiftRegisterEn {
-  def apply[T <: Data](in: T, n: Int, en: Bool = Bool(true)): T = {
-    if (n == 1) RegEnable(in, en)
-    else RegEnable(apply(in, n-1, en), en)
+  def apply[T <: Data](data: T, delay: Int, enable: Bool = Bool(true)): T = {
+    if (delay == 1) RegEnable(data, enable)
+    else RegEnable(apply(data, delay-1, enable), enable)
+  }
+}
+
+object TapDelayLineEn {
+  def apply[T <: Data](
+    data: T, delay: Int, enable: Bool = Bool(true), tap: Int = 1): List[T] = {
+    
+    if (tap <= 1) List(data)
+    else {
+      data :: apply(ShiftRegisterEn(data, delay, enable),
+      delay, enable, tap-1)
+    }
   }
 }
