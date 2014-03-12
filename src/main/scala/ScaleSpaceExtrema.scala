@@ -4,7 +4,7 @@ import Chisel._
 
 class ScaleSpaceExtrema(it: ImageType, n_oct: Int = 1) extends Module {
   val io = new Bundle {
-    val img_in = Valid(UInt(width=it.dwidth)).flip
+    val img_in = Decoupled(UInt(width=it.dwidth)).flip
     val coord = Valid(new Coord(it))
     
     val select = Decoupled(UInt(width=8)).flip
@@ -56,14 +56,17 @@ class ScaleSpaceExtrema(it: ImageType, n_oct: Int = 1) extends Module {
   else {
     // Approximate (r+b+g)/3 as (r+b+g)*(16 + 4 + 1)/64
     // Also offset by 4 to allow for colorspace mapping
-    /*val sum = (Cat(UInt("h00"), io.img_in.bits(23,16)) + 
+    val sum = (Cat(UInt("h00"), io.img_in.bits(23,16)) + 
       io.img_in.bits(15,8) + io.img_in.bits(7,0))
     val div = (UInt(16)*sum) + (UInt(4)*sum) + sum
-    oct(0).io.img_in.bits := (div >> UInt(6)) + UInt(4)*/
+    oct(0).io.img_in.bits := (div >> UInt(6)) + UInt(4)
+    
+    // Uncomment to only select red channel for debugging
     oct(0).io.img_in.bits := io.img_in.bits(7,0)
   }
 
   oct(0).io.img_in.valid := io.img_in.valid
+  io.img_in.ready := oct(0).io.img_in.ready
 
   oct(0).io.img_out.ready := Bool(true)
   
@@ -115,15 +118,19 @@ class ScaleSpaceExtremaTests(c: ScaleSpaceExtrema, val infilename: String,
       
       poke(c.io.img_in.bits, triplet)
       poke(c.io.img_in.valid, 1)
-
-      in_idx += 1
-      timeout = 0
+      
     } else {
       poke(c.io.img_in.valid, 0)
     }
 
     step(1)
-    timeout += 1
+    
+    if ((in_idx < n_pixel) && (peek(c.io.img_in.ready)==1)) {
+      in_idx += 1
+      timeout = 0
+    } else {
+      timeout += 1
+    }
 
     if(out_idx < n_pixel && peek(c.io.img_out.valid)==1) {
       // Write debug image out

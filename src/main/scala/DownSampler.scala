@@ -8,15 +8,15 @@ class DownSampler(it: ImageType) extends Module {
     val out = Decoupled(UInt(width=it.dwidth))
   }
 
-  io.in.ready := Bool(true)
+  io.in.ready := io.out.ready
 
   io.out.bits := io.in.bits
 
   val col_counter = Module(new Counter(it.width-1))
-  col_counter.io.en := io.in.valid
+  col_counter.io.en := io.in.fire()
 
   val row_active = Reg(init = Bool(true))
-  when(io.in.valid & col_counter.io.top) {
+  when(io.in.fire() & col_counter.io.top) {
     row_active := ~row_active
   }
 

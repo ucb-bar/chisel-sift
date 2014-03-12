@@ -4,7 +4,7 @@ import Chisel._
 
 object StdCoeff {
   val GaussKernel = List(UInt(6,8), UInt(58,8), UInt(128,8))
-  val CenterKernel = List(UInt(0,8), UInt(0,8), UInt(255,8))
+  val CenterKernel = List(UInt(0,8), UInt(0,8), UInt(256,9))
   val UnityKernel = List(UInt(1,8), UInt(1,8), UInt(1,8))
   val AvgKernel = List(UInt(85,8), UInt(85,8), UInt(85,8))
 }
@@ -16,7 +16,7 @@ object StdCoeff {
   * coeff: coefficients of symmetric FIR filter, listed from outer to center
   */
 class SymmetricFIR(delay: Int, line: Int, n_tap: Int, dwidth : Int = 8,
-  coeff: List[UInt] = StdCoeff.UnityKernel) extends Module{
+  coeff: List[UInt] = StdCoeff.GaussKernel) extends Module{
   val io = new Bundle {
     val in = Decoupled(UInt(width = dwidth)).flip
     val out = Decoupled(UInt(width = dwidth))
