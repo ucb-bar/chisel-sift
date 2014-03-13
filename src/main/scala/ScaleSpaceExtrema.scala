@@ -88,7 +88,7 @@ class ScaleSpaceExtremaTests(c: ScaleSpaceExtrema, val infilename: String,
   val n_pixel = inPic.w * inPic.h
 
   // Select debug image stream
-  poke(c.io.select.bits, 0x03)
+  poke(c.io.select.bits, 0x06)
   poke(c.io.select.valid, 1)
   step(1)
   poke(c.io.img_in.valid, 0)

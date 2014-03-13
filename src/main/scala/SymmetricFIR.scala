@@ -47,16 +47,15 @@ class SymmetricFIR(
   in_counter.io.en := io.in.fire()
 
   // Counter for line to disable terms when at edges
-  val term_en = Reg(init = Bool(false))
+  val term_en = Bool() //Reg(init = Bool(false))
   
   val term_counter = Module(new Counter(UInt(delay*line-1)))
   term_counter.io.en := term_en & advance
-  
-  when((in_counter.io.count === UInt(term_delay-1)) & advance) {
-    term_en := Bool(true)
-  } .elsewhen (term_counter.io.top & advance) {
-    term_en := Bool(false)
-  }
+ 
+  term_en := Mux(
+    term_counter.io.count === UInt(0),
+    (in_counter.io.count === UInt(term_delay)),
+    Bool(true))
 
   // Count outputs
   val out_counter = Module(new Counter(UInt(delay*line-1)))
@@ -80,19 +79,21 @@ class SymmetricFIR(
 
       when ((in_counter.io.count === UInt (total_delay-1)) & advance) {
         state := s_pipe
-      }}
+      }
+    }
     is (s_pipe) {
       io.in.ready := io.out.ready
       io.out.valid := io.in.valid
       advance := io.in.valid & io.out.ready
       
-      when (out_counter.io.top & advance) {
+      when (in_counter.io.count < UInt(total_delay-1) & out_counter.io.top & advance) {
         state := s_prime
       } .elsewhen (in_counter.io.top & advance) {
         state := s_flush
-      }}
+      }
+    }
     is (s_flush) {
-      io.in.ready := Bool(true)
+      io.in.ready := io.out.ready
       io.out.valid := Bool(true)
       advance := io.out.ready
 
@@ -100,7 +101,8 @@ class SymmetricFIR(
         state := s_prime
       } .elsewhen (io.in.valid) {
         state := s_pipe
-      }}
+      }
+    }
   }
   
   // Create tapped delay line of inputs
