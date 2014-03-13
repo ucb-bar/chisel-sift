@@ -3,7 +3,7 @@ package SIFT
 import Chisel._
 
 class ScaleSpaceExtrema(
-  it: ImageType, n_oct: Int = 1, debug: Boolean = false) extends Module {
+  it: ImageType, n_oct: Int = 2, debug: Boolean = false) extends Module {
 
   val io = new Bundle {
     val img_in = Decoupled(UInt(width=it.dwidth)).flip
@@ -88,7 +88,7 @@ class ScaleSpaceExtremaTests(c: ScaleSpaceExtrema, val infilename: String,
   val n_pixel = inPic.w * inPic.h
 
   // Select debug image stream
-  poke(c.io.select.bits, 0x06)
+  poke(c.io.select.bits, 0x16)
   poke(c.io.select.valid, 1)
   step(1)
   poke(c.io.img_in.valid, 0)

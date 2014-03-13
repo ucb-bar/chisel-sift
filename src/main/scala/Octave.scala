@@ -56,9 +56,9 @@ class Octave(
   gauss(n_gauss-1).io.out.ready := Bool(true)
 
   // Wire downstream octave image to selected gaussian tap
-  /*io.next_img_out <> gauss(next_tap).io.out
   io.next_img_out.bits := gauss(next_tap).io.out.bits
-  io.next_img_out.valid := gauss(next_tap).io.out.valid*/
+  io.next_img_out.valid := gauss(next_tap).io.out.valid
+  gauss(next_tap).io.out.ready := io.next_img_out.ready
 
   // Take difference of gaussian pairs
   /*val n_diff = n_ext + 2
