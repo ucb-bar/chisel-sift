@@ -29,7 +29,7 @@ emulator/outputs.xml: $(exec_outs)
 	./tools/check $(exec_outs) > $@
 
 data/debug.im8: data/count.im8 source/*.scala
-	$(SBT) "run Debug --genHarness --compile --test --backend c --targetDir emulator $(CHISEL_FLAGS)" | tee Debug.out
+	$(SBT) "run Debug --genHarness --compile --test --backend c --targetDir emulator $(CHISEL_FLAGS)" | tee emulator/Debug.out
 
 debug: data/debug.im8
 
