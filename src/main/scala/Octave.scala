@@ -7,7 +7,8 @@ import Chisel._
   * n_ext: number of possible extrema output from this octave
   * next_tap: what point in the gaussian stream to send to the next octave
   */
-class Octave(it: ImageType, index: Int, n_ext: Int = 2, next_tap: Int = 2)
+class Octave(
+  it: ImageType, index: Int, n_ext: Int = 2, debug: Boolean = false, next_tap: Int = 2)
   extends Module {
   
   val io = new Bundle {
@@ -38,7 +39,7 @@ class Octave(it: ImageType, index: Int, n_ext: Int = 2, next_tap: Int = 2)
 
   // Chain of gaussian blurs
   val n_gauss = n_ext + 3
-  val gauss = Range(0, n_gauss).map(i => Module(new Gaussian(it_div_2)))
+  val gauss = Range(0, n_gauss).map(i => Module(new Gaussian(it_div_2, debug=debug)))
   
   // Default
   gauss(0).io.in.bits := ds.io.out.bits
@@ -48,7 +49,7 @@ class Octave(it: ImageType, index: Int, n_ext: Int = 2, next_tap: Int = 2)
   for(i <- 0 until n_gauss-1) {
     gauss(i+1).io.in.bits := gauss(i).io.out.bits
     gauss(i+1).io.in.valid := gauss(i).io.out.valid
-    gauss(i).io.out.ready := gauss(i+1).io.out.ready
+    gauss(i).io.out.ready := gauss(i+1).io.in.ready
   }
 
   // Make sure last ready is wired

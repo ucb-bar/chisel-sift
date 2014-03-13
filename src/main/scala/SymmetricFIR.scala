@@ -15,8 +15,10 @@ object StdCoeff {
   * dwidth: bit width of elements
   * coeff: coefficients of symmetric FIR filter, listed from outer to center
   */
-class SymmetricFIR(delay: Int, line: Int, n_tap: Int, dwidth : Int = 8,
+class SymmetricFIR(
+  delay: Int, line: Int, n_tap: Int, dwidth : Int = 8, 
   coeff: List[UInt] = StdCoeff.GaussKernel) extends Module{
+
   val io = new Bundle {
     val in = Decoupled(UInt(width = dwidth)).flip
     val out = Decoupled(UInt(width = dwidth))

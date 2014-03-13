@@ -8,14 +8,26 @@ object SIFT {
     val res =
     
     args(0) match {
-      case "ScaleSpaceExtrema" =>
+      case "ScaleSpaceExtrema" => {
         val img = Image("data/in.im24")
 
         chiselMainTest(tutArgs,
           () => Module(new ScaleSpaceExtrema(
             new ImageType(img.w, img.h, img.d)))) {
-            c => new ScaleSpaceExtremaTests(c, "data/in.im24",
-              "data/out.im24","data/coord.im24")
+              c => new ScaleSpaceExtremaTests(c, "data/in.im24",
+                "data/out.im24","data/coord.im24")
+            }
+      }
+
+      case "Debug" => {
+        val img = Image("data/count.im8")
+
+        chiselMainTest(tutArgs,
+          () => Module(new ScaleSpaceExtrema(
+            new ImageType(img.w, img.h, img.d), debug=true))) {
+              c => new ScaleSpaceExtremaTests(c, "data/count.im8",
+                "data/debug.im8","data/debug_coord.im24")
+            }
       }
     }
   }

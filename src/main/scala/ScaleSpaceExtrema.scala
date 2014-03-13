@@ -2,7 +2,9 @@ package SIFT
 
 import Chisel._
 
-class ScaleSpaceExtrema(it: ImageType, n_oct: Int = 1) extends Module {
+class ScaleSpaceExtrema(
+  it: ImageType, n_oct: Int = 1, debug: Boolean = false) extends Module {
+
   val io = new Bundle {
     val img_in = Decoupled(UInt(width=it.dwidth)).flip
     val coord = Valid(new Coord(it))
@@ -39,7 +41,7 @@ class ScaleSpaceExtrema(it: ImageType, n_oct: Int = 1) extends Module {
   val gray_it = new ImageType(it.width, it.height, 8)
 
   val oct = Range(0, n_oct).map(
-    i => Module(new Octave(gray_it.subsample(i), i))
+    i => Module(new Octave(gray_it.subsample(i), i, debug=debug))
   )
 
   for (i <- 0 until n_oct) {
@@ -51,18 +53,15 @@ class ScaleSpaceExtrema(it: ImageType, n_oct: Int = 1) extends Module {
     }
   }
   
-  if (it.dwidth == 8)
-    oct(0).io.img_in.bits := io.img_in.bits
-  else {
+  if (it.dwidth == 24) {
     // Approximate (r+b+g)/3 as (r+b+g)*(16 + 4 + 1)/64
     // Also offset by 4 to allow for colorspace mapping
     val sum = (Cat(UInt("h00"), io.img_in.bits(23,16)) + 
       io.img_in.bits(15,8) + io.img_in.bits(7,0))
     val div = (UInt(16)*sum) + (UInt(4)*sum) + sum
     oct(0).io.img_in.bits := (div >> UInt(6)) + UInt(4)
-    
-    // Uncomment to only select red channel for debugging
-    //oct(0).io.img_in.bits := io.img_in.bits(7,0)
+  } else {
+    oct(0).io.img_in.bits := io.img_in.bits
   }
 
   oct(0).io.img_in.valid := io.img_in.valid
@@ -70,10 +69,10 @@ class ScaleSpaceExtrema(it: ImageType, n_oct: Int = 1) extends Module {
 
   oct(0).io.img_out.ready := Bool(true)
   
-  if (it.dwidth == 8)
-    io.img_out.bits := oct(0).io.img_out.bits
-  else 
+  if (it.dwidth == 24)
     io.img_out.bits := Fill(3,oct(0).io.img_out.bits)
+  else 
+    io.img_out.bits := oct(0).io.img_out.bits
   
   io.img_out.valid := oct(0).io.img_out.valid
 }
@@ -84,7 +83,7 @@ class ScaleSpaceExtremaTests(c: ScaleSpaceExtrema, val infilename: String,
 
   val inPic = Image(infilename)
   val imgPic = Image(inPic.w, inPic.h, inPic.d)
-  val coordPic = Image(inPic.w, inPic.h, inPic.d)
+  val coordPic = Image(inPic.w, inPic.h, 24)
   val n_byte = inPic.d/8
   val n_pixel = inPic.w * inPic.h
 
@@ -96,7 +95,7 @@ class ScaleSpaceExtremaTests(c: ScaleSpaceExtrema, val infilename: String,
   step(1)
 
   println("w=" + inPic.w + " h=" + inPic.h + " d=" + inPic.d)
-  println("out length=" + imgPic.data.length)
+  println("out length=" + imgPic.data.length + " n_pixel=" + n_pixel)
   
   var in_idx = 0
   var out_idx = 0
@@ -111,7 +110,7 @@ class ScaleSpaceExtremaTests(c: ScaleSpaceExtrema, val infilename: String,
     if (in_idx < n_pixel) {
       triplet = 0
       for (j <- 0 until n_byte) {
-        pixel = inPic.data(3*in_idx+j)
+        pixel = inPic.data(n_byte*in_idx+j)
         if (pixel < 0) pixel += 256
         triplet += pixel << (8*j)
       }
@@ -137,12 +136,12 @@ class ScaleSpaceExtremaTests(c: ScaleSpaceExtrema, val infilename: String,
       val out_triplet = peek(c.io.img_out.bits)
 
       for (j <- 0 until n_byte) {
-        imgPic.data((3*out_idx)+j) = ((out_triplet >> (8*j)) & 0xFF).toByte
+        imgPic.data((n_byte*out_idx)+j) = ((out_triplet >> (8*j)) & 0xFF).toByte
       }
 
       // Color pixel red if outputting valid coord, grey otherwise
       val coordpix = if (peek(c.io.coord.valid)==1) 0xFF0000 else 0x808080  
-      for (j <- 0 until n_byte) {
+      for (j <- 0 until 3) {
         coordPic.data(3*out_idx+j) = ((coordpix >> (8*j)) & 0xFF).toByte
       }
 
