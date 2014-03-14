@@ -41,33 +41,47 @@ class Octave(
   val n_gauss = n_ext + 3
   val gauss = Range(0, n_gauss).map(i => Module(new Gaussian(it_div_2, debug=debug)))
   
-  // Default
+  // Delayed Difference modules
+  val n_diff = n_ext + 2
+  val diff = Range(0, n_diff).map(
+    i => Module(new DelayDiff(it_div_2, gauss(i).n_tap)))
+  
+  // Wire Gaussian chain and difference modules
   gauss(0).io.in.bits := ds.io.out.bits
   gauss(0).io.in.valid := ds.io.out.valid
   ds.io.out.ready := gauss(0).io.in.ready
 
-  for(i <- 0 until n_gauss-1) {
-    gauss(i+1).io.in.bits := gauss(i).io.out.bits
-    gauss(i+1).io.in.valid := gauss(i).io.out.valid
-    gauss(i).io.out.ready := gauss(i+1).io.in.ready
-  }
+  for(i <- 0 until n_gauss) {
+    
+    // Gaussian chain
+    if(i < n_gauss - 1) {
+      gauss(i+1).io.in.bits := gauss(i).io.out.bits
+      gauss(i+1).io.in.valid := gauss(i).io.out.valid
+    }
+    
+    // Difference between adjacent gaussians
+    if(i < n_diff) {
+      diff(i).io.a.bits := gauss(i).io.out.bits
+      diff(i).io.a.valid := gauss(i).io.out.valid
+      
+      diff(i).io.b.bits := gauss(i+1).io.out.bits
+      diff(i).io.b.valid := gauss(i+1).io.out.valid
 
-  // Make sure last ready is wired
-  gauss(n_gauss-1).io.out.ready := Bool(true)
+      diff(i).io.out.ready := Bool(true)
+    }
+
+    // Stall signals should wait on inputs if they exist
+    gauss(i).io.out.ready := (
+      (if(i+1 < n_gauss) gauss(i+1).io.in.ready else Bool(true)) & 
+      (if(i > 0) diff(i-1).io.a.ready else Bool(true)) & 
+      (if(i < n_diff) diff(i).io.b.ready else Bool(true))
+    )
+  }
 
   // Wire downstream octave image to selected gaussian tap
   io.next_img_out.bits := gauss(next_tap).io.out.bits
   io.next_img_out.valid := gauss(next_tap).io.out.valid
   gauss(next_tap).io.out.ready := io.next_img_out.ready
-
-  // Take difference of gaussian pairs
-  /*val n_diff = n_ext + 2
-  val diff = Range(0, n_diff).map(
-    i => Module(new DelayDiff(it_div_2,gauss(i).n_tap)))
-  for (i <- 0 until n_diff) {
-    diff(i).io.a <> gauss(i).io.out
-    diff(i).io.b <> gauss(i+1).io.out
-  }*/
 
   // Debug image output stream selection
   // When our index is the active source, select an internal stream
@@ -91,12 +105,22 @@ class Octave(
 
     switch(io.select(3,0)) {
       for (i <- 0 until n_gauss) {
-        is(UInt(i+2)) {
+        is(UInt(2+i)) {
           ds.io.out.ready := gauss(0).io.in.ready
 
           us.io.in.bits := gauss(i).io.out.bits
           us.io.in.valid := gauss(i).io.out.valid
           gauss(i).io.out.ready := us.io.in.ready
+        }
+      }
+
+      for (i <- 0 until n_diff) {
+        is(UInt(2+n_gauss+i)) {
+          ds.io.out.ready := gauss(0).io.in.ready
+
+          us.io.in.bits := diff(i).io.out.bits
+          us.io.in.valid := diff(i).io.out.valid
+          diff(i).io.out.ready := us.io.in.ready
         }
       }
     }

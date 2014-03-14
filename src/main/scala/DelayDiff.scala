@@ -9,16 +9,17 @@ class DelayDiff(it: ImageType, n_tap: Int = 5) extends Module{
     val out = Decoupled(UInt(width=it.dwidth))
   }
   
-  io.a.ready := io.out.ready
-  io.b.ready := io.out.ready
-
   val mid_tap = (n_tap+1)/2
 
-  val shifter = ShiftRegister(
-    Cat(io.a.valid,io.a.bits),
-    (mid_tap-1)*it.width, io.out.valid)
-  
-  io.out.valid := shifter(it.dwidth) & io.b.valid & io.out.ready
+  val q = Module(new Queue(UInt(width=it.dwidth), (mid_tap-1)*it.width + mid_tap))
 
-  io.out.bits := shifter(it.dwidth-1,0) - io.b.bits
+  q.io.enq <> io.a
+
+  q.io.deq.ready := io.b.valid & io.out.ready
+
+  io.b.ready := io.out.ready & q.io.deq.valid
+  
+  io.out.valid := q.io.deq.valid & io.b.valid
+  
+  io.out.bits := q.io.deq.bits - io.b.bits
 }
