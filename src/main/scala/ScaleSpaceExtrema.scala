@@ -2,6 +2,9 @@ package SIFT
 
 import Chisel._
 
+import scala.io.Source
+import java.io.File
+
 class ScaleSpaceExtrema(
   it: ImageType, n_oct: Int = 2, debug: Boolean = false) extends Module {
 
@@ -13,23 +16,32 @@ class ScaleSpaceExtrema(
     val img_out = Valid(UInt(width=it.dwidth))
   }
   
-  // Count pixels output
-  val ic = Module(new ImageCounter(it))
-  io.coord.bits := ic.io.out
-  ic.io.en := io.img_out.fire()
+  // Count pixels output and input
+  val out_count = Module(new ImageCounter(it))
+  io.coord.bits := out_count.io.out
+  out_count.io.en := io.img_out.fire()
 
+  val in_count = Module(new ImageCounter(it))
+  in_count.io.en := io.img_in.fire()
+  
   // Allow changing source when stream is not in process
-  val select_ready = Reg(init = Bool(true))
-  io.select.ready := select_ready
-  when(io.img_out.fire() & ic.io.top) {
+  //val select_ready = Reg(init = Bool(true))
+  io.select.ready := (
+    !io.img_in.valid &
+    (in_count.io.out.row === UInt(0)) &
+    (in_count.io.out.col === UInt(0)) &
+    (out_count.io.out.row === UInt(0)) &
+    (out_count.io.out.col === UInt(0)))
+
+  /*when(io.img_out.fire() & out_count.io.top & (in_count.) {
     select_ready := Bool(true)
   }
-  when(io.img_in.valid) {
+  when(io.select.fire()) {
     select_ready := Bool(false)
-  }
+  }*/
 
   // Just generate a pattern on valid for now
-  io.coord.valid := ic.io.out.col > ic.io.out.row
+  io.coord.valid := out_count.io.out.col > out_count.io.out.row
 
   // Latch output image source when allowed
   val select_r = Reg(init = UInt(0,8))
@@ -79,35 +91,56 @@ class ScaleSpaceExtrema(
   io.img_out.valid := oct(0).io.img_out.valid
 }
 
-class ScaleSpaceExtremaTests(c: ScaleSpaceExtrema, val infilename: String,
-  val imgfilename: String, val coordfilename: String) 
+class ScaleSpaceExtremaTests(c: ScaleSpaceExtrema, val ctrlfilename: String,
+  val infilename: String, val imgfilename: String, val coordfilename: String) 
   extends Tester(c, false) {
 
+  var ctrl = List(0x00)
+
+  try {
+    val ctrl_file = Source.fromFile(ctrlfilename)
+    ctrl = ctrl_file.getLines().map(_.split(",")).flatten.map(_.toInt).toList
+    ctrl_file.close()
+  } catch {
+    case _ : Throwable => {
+      println("File \"" + ctrlfilename + "\" not found")
+    }
+  }
+  
+  println("Ctrl Inputs: " + ctrl)
+  val n_ctrl = ctrl.length
+  
   val inPic = Image(infilename)
   val imgPic = Image(inPic.w, inPic.h, inPic.d)
   val coordPic = Image(inPic.w, inPic.h, 24)
   val n_byte = inPic.d/8
   val n_pixel = inPic.w * inPic.h
-
-  // Select debug image stream
-  poke(c.io.select.bits, 0x10)
-  poke(c.io.select.valid, 1)
-  step(1)
-  poke(c.io.img_in.valid, 0)
-  step(1)
-
-  println("w=" + inPic.w + " h=" + inPic.h + " d=" + inPic.d)
-  println("out length=" + imgPic.data.length + " n_pixel=" + n_pixel)
   
-  var in_idx = 0
-  var out_idx = 0
+  println("w=" + inPic.w + " h=" + inPic.h + " d=" + inPic.d)
+  //println("out length=" + imgPic.data.length + " n_pixel=" + n_pixel)
+
+  var ctrl_idx = 0
+  var in_idx = n_pixel
+  var out_idx = n_pixel
+
   var timeout = 0
   
   var triplet = 0
   var pixel = 0
+  
+  poke(c.io.img_in.valid, 0)
+  poke(c.io.select.valid, 0)
+  step(1)
 
-  while ((timeout < 1000) && 
-    (in_idx < n_pixel || out_idx < n_pixel)) {
+  while ((timeout < 1000) && (ctrl_idx < ctrl.length) ||
+    ((ctrl_idx == ctrl.length) && (in_idx < n_pixel || out_idx < n_pixel))) {
+    
+    if (ctrl_idx < ctrl.length) {
+      poke(c.io.select.bits, ctrl(ctrl_idx))
+      poke(c.io.select.valid, 1)
+    } else {
+      poke(c.io.select.valid, 0)
+    }
     
     if (in_idx < n_pixel) {
       triplet = 0
@@ -126,14 +159,27 @@ class ScaleSpaceExtremaTests(c: ScaleSpaceExtrema, val infilename: String,
 
     step(1)
     
-    if ((in_idx < n_pixel) && (peek(c.io.img_in.ready)==1)) {
-      in_idx += 1
-      timeout = 0
+    if((in_idx == n_pixel) && (out_idx == n_pixel) && (peek(c.io.select.ready)==1)) {
+      println("Submitting image " + ctrl_idx)
+      
+      if (ctrl_idx < n_ctrl) {
+        // Reset design to clear all pipeline state
+        reset()
+        step(1)
+        in_idx = 0
+        out_idx = 0
+        timeout = 0
+      }
     } else {
-      timeout += 1
+      if ((in_idx < n_pixel) && (peek(c.io.img_in.ready)==1)) {
+        in_idx += 1
+        timeout = 0
+      } else {
+        timeout += 1
+      }
     }
 
-    if(out_idx < n_pixel && peek(c.io.img_out.valid)==1) {
+    if((ctrl_idx < n_ctrl) && (out_idx < n_pixel && peek(c.io.img_out.valid)==1)) {
       // Write debug image out
       val out_triplet = peek(c.io.img_out.bits)
 
@@ -141,6 +187,16 @@ class ScaleSpaceExtremaTests(c: ScaleSpaceExtrema, val infilename: String,
         imgPic.data((n_byte*out_idx)+j) = ((out_triplet >> (8*j)) & 0xFF).toByte
       }
 
+      if (out_idx == n_pixel - 1) {
+        val img_list = imgfilename.split("\\.").toList
+        val (img_base, img_ext) = img_list.splitAt(img_list.length-1)
+        val img_name = img_base(0) + ctrl_idx + "." + img_ext(0)
+        println("Writing " + img_name)
+        imgPic.write(img_name)
+        
+        ctrl_idx += 1
+      }
+      
       // Color pixel red if outputting valid coord, grey otherwise
       val coordpix = if (peek(c.io.coord.valid)==1) 0xFF0000 else 0x808080  
       for (j <- 0 until 3) {
@@ -157,7 +213,6 @@ class ScaleSpaceExtremaTests(c: ScaleSpaceExtrema, val infilename: String,
   step(10)
   
   println("InIdx: " + in_idx + ", OutIdx: " + out_idx + ", Cycle: " + timeout)
-  imgPic.write(imgfilename)
   coordPic.write(coordfilename)
 
   ok = true

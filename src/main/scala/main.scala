@@ -13,9 +13,9 @@ object SIFT {
 
         chiselMainTest(tutArgs,
           () => Module(new ScaleSpaceExtrema(
-            new ImageType(img.w, img.h, img.d)))) {
-              c => new ScaleSpaceExtremaTests(c, "data/in.im24",
-                "data/out.im24","data/coord.im24")
+            new ImageType(img.w, img.h, img.d), n_oct=1))) {
+              c => new ScaleSpaceExtremaTests(c, "data/control.csv",
+                "data/in.im24","data/out.im24","data/coord.im24")
             }
       }
 
@@ -24,9 +24,9 @@ object SIFT {
 
         chiselMainTest(tutArgs,
           () => Module(new ScaleSpaceExtrema(
-            new ImageType(img.w, img.h, img.d), debug=true))) {
-              c => new ScaleSpaceExtremaTests(c, "data/count.im8",
-                "data/debug.im8","data/debug_coord.im24")
+            new ImageType(img.w, img.h, img.d), n_oct=1, debug=true))) {
+              c => new ScaleSpaceExtremaTests(c, "data/debug.csv",
+                "data/count.im8","data/debug.im8","data/debug_coord.im24")
             }
       }
     }

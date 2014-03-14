@@ -22,7 +22,7 @@ clean:
 	-rm -f emulator/* verilog/*
 	-rm -rf project target
 	-rm -f *.vcd
-	-rm -f data/out.im24 data/coord.im24 data/debug.im8 data/debug_coord.im24
+	-rm -f data/out*.im* data/debug*.im* data/coord.im24 data/debug_coord.im24
 
 verilog: $(addprefix verilog/, $(addsuffix .v, $(executables)))
 
