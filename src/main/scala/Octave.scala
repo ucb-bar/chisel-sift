@@ -56,32 +56,47 @@ class Octave(
     // Gaussian chain
     if(i < n_gauss - 1) {
       gauss(i+1).io.in.bits := gauss(i).io.out.bits
-      gauss(i+1).io.in.valid := gauss(i).io.out.valid
+      gauss(i+1).io.in.valid := (
+        gauss(i).io.out.valid &
+        (if(i < n_diff) diff(i).io.a.ready else Bool(true)) & 
+        (if(i > 0) diff(i-1).io.b.ready else Bool(true))
+      )
     }
     
     // Difference between adjacent gaussians
     if(i < n_diff) {
       diff(i).io.a.bits := gauss(i).io.out.bits
-      diff(i).io.a.valid := gauss(i).io.out.valid
+      diff(i).io.a.valid := (
+        gauss(i).io.out.valid &
+        gauss(i+1).io.in.ready & 
+        (if(i > 0) diff(i-1).io.b.ready else Bool(true))
+      )
       
       diff(i).io.b.bits := gauss(i+1).io.out.bits
-      diff(i).io.b.valid := gauss(i+1).io.out.valid
+      diff(i).io.b.valid := (
+        gauss(i+1).io.out.valid &
+        (if(i+2 < n_gauss) gauss(i+2).io.in.ready else Bool(true)) &
+        (if(i+1 < n_diff) diff(i+1).io.a.ready else Bool(true))
+      )
 
       diff(i).io.out.ready := Bool(true)
     }
 
-    // Stall signals should wait on inputs if they exist
+    // Sources should wait on all sinks (if they exist)
     gauss(i).io.out.ready := (
       (if(i+1 < n_gauss) gauss(i+1).io.in.ready else Bool(true)) & 
-      (if(i > 0) diff(i-1).io.a.ready else Bool(true)) & 
-      (if(i < n_diff) diff(i).io.b.ready else Bool(true))
+      (if(i < n_diff) diff(i).io.a.ready else Bool(true)) & 
+      (if(i > 0) diff(i-1).io.b.ready else Bool(true)) &
+      (if(i==next_tap) io.next_img_out.ready else Bool(true))
     )
   }
 
   // Wire downstream octave image to selected gaussian tap
   io.next_img_out.bits := gauss(next_tap).io.out.bits
-  io.next_img_out.valid := gauss(next_tap).io.out.valid
-  gauss(next_tap).io.out.ready := io.next_img_out.ready
+
+  // Will this create combinational loops?
+  io.next_img_out.valid := gauss(next_tap).io.out.fire()
+  //gauss(next_tap).io.out.ready := io.next_img_out.ready
 
   // Debug image output stream selection
   // When our index is the active source, select an internal stream

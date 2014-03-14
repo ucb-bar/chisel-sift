@@ -11,7 +11,7 @@ class DelayDiff(it: ImageType, n_tap: Int = 5) extends Module{
   
   val mid_tap = (n_tap+1)/2
 
-  val q = Module(new Queue(UInt(width=it.dwidth), (mid_tap-1)*it.width + mid_tap))
+  val q = Module(new Queue(UInt(width=it.dwidth), mid_tap*it.width))
 
   q.io.enq <> io.a
 

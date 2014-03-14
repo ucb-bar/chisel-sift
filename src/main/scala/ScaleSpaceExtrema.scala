@@ -53,6 +53,8 @@ class ScaleSpaceExtrema(
     }
   }
   
+  oct(n_oct-1).io.next_img_out.ready := Bool(true)
+  
   if (it.dwidth == 24) {
     // Approximate (r+b+g)/3 as (r+b+g)*(16 + 4 + 1)/64
     // Also offset by 4 to allow for colorspace mapping
@@ -68,7 +70,7 @@ class ScaleSpaceExtrema(
   io.img_in.ready := oct(0).io.img_in.ready
 
   oct(0).io.img_out.ready := Bool(true)
-  
+
   if (it.dwidth == 24)
     io.img_out.bits := Fill(3,oct(0).io.img_out.bits)
   else 
