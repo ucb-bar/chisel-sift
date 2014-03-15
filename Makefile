@@ -43,4 +43,7 @@ emulator/%.out: data/in.im24 source/*.scala
 verilog/%.v: source/*.scala
 	$(SBT) "run $(notdir $(basename $@)) --genHarness --backend v --targetDir verilog $(CHISEL_FLAGS)"
 
+zedboard: source/*.scala
+	$(SBT) "run Zedboard --genHarness --backend v --targetDir verilog $(CHISEL_FLAGS)"
+
 .PHONY: top outs all exec check clean verilog debug

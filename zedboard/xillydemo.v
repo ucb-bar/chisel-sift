@@ -368,11 +368,38 @@ module xillydemo
     .dout(sse_select_bits)
   );
 
+  wire ack_fifo_valid;
+  assign ack_fifo_valid = select_fifo_valid & select_fifo_ready;
+  reg [7:0] ack_count;
+
+  initial ack_count = 8'd0;
+
+  always @(posedge bus_clk) begin
+    if (select_fifo_reset)
+      ack_count := 8'd0;
+    else if (ack_fifo_valid)
+      ack_count := select_count + 8'd1;
+  end
+
+  // Acknowledge when selected stream has been changed
+  fifo_8x2048 ack_fifo(
+    .clk(bus_clk),
+    .srst(select_fifo_reset),
+
+    .full(),
+    .wr_en(ack_fifo_valid),
+    .din(ack_count),
+    
+    .rd_en(user_r_read_rden),
+    .empty(user_r_read_empty),
+    .dout(user_r_read_data)
+  );
+
   assign  user_r_read_8_eof = 0;
 
   // Image input and output FIFOs
   wire img_fifo_reset;
-  assign img_fifo_reset = !user_w_write_32_open & !user_r_read_32_open;
+  assign img_fifo_reset = sse_reset_condition | (!user_w_write_32_open & !user_r_read_32_open);
   
   wire img_in_fifo_empty;
   assign sse_img_in_valid = !img_in_fifo_empty;

@@ -13,7 +13,7 @@ class ScaleSpaceExtrema(
     val coord = Valid(new Coord(it))
     
     val select = Decoupled(UInt(width=8)).flip
-    val img_out = Valid(UInt(width=it.dwidth))
+    val img_out = Decoupled(UInt(width=it.dwidth))
   }
   
   // Count pixels output and input
@@ -33,13 +33,6 @@ class ScaleSpaceExtrema(
     (out_count.io.out.row === UInt(0)) &
     (out_count.io.out.col === UInt(0)))
 
-  /*when(io.img_out.fire() & out_count.io.top & (in_count.) {
-    select_ready := Bool(true)
-  }
-  when(io.select.fire()) {
-    select_ready := Bool(false)
-  }*/
-
   // Just generate a pattern on valid for now
   io.coord.valid := out_count.io.out.col > out_count.io.out.row
 
@@ -51,11 +44,13 @@ class ScaleSpaceExtrema(
   
   // For now octaves only operate on grayscale byte images
   val gray_it = new ImageType(it.width, it.height, 8)
-
+  
+  // Create sequence of octaves
   val oct = Range(0, n_oct).map(
     i => Module(new Octave(gray_it.subsample(i), i, next_tap=1, debug=debug)) 
   )
 
+  // Wire downstream octave ports to "next" image ports of previous octave
   for (i <- 0 until n_oct) {
     oct(i).io.select := select_r
     
@@ -65,7 +60,12 @@ class ScaleSpaceExtrema(
     }
   }
   
+  // Always assert last octave ready to avoid stalling pipeline
   oct(n_oct-1).io.next_img_out.ready := Bool(true)
+  
+  // Wire input image to first octave main image input
+  io.img_in.ready := oct(0).io.img_in.ready
+  oct(0).io.img_in.valid := io.img_in.valid
   
   if (it.dwidth == 24) {
     // Approximate (r+b+g)/3 as (r+b+g)*(16 + 4 + 1)/64
@@ -78,17 +78,14 @@ class ScaleSpaceExtrema(
     oct(0).io.img_in.bits := io.img_in.bits
   }
 
-  oct(0).io.img_in.valid := io.img_in.valid
-  io.img_in.ready := oct(0).io.img_in.ready
-
-  oct(0).io.img_out.ready := Bool(true)
-
+  // Wire output image to first octave main image output
+  oct(0).io.img_out.ready := io.img_out.ready
+  io.img_out.valid := oct(0).io.img_out.valid
+  
   if (it.dwidth == 24)
     io.img_out.bits := Fill(3,oct(0).io.img_out.bits)
   else 
     io.img_out.bits := oct(0).io.img_out.bits
-  
-  io.img_out.valid := oct(0).io.img_out.valid
 }
 
 class ScaleSpaceExtremaTests(c: ScaleSpaceExtrema, val ctrlfilename: String,
@@ -117,7 +114,6 @@ class ScaleSpaceExtremaTests(c: ScaleSpaceExtrema, val ctrlfilename: String,
   val n_pixel = inPic.w * inPic.h
   
   println("w=" + inPic.w + " h=" + inPic.h + " d=" + inPic.d)
-  //println("out length=" + imgPic.data.length + " n_pixel=" + n_pixel)
 
   var ctrl_idx = 0
   var in_idx = n_pixel
@@ -157,6 +153,7 @@ class ScaleSpaceExtremaTests(c: ScaleSpaceExtrema, val ctrlfilename: String,
       poke(c.io.img_in.valid, 0)
     }
 
+    poke(c.io.img_out.ready, 1)
     step(1)
     
     if((in_idx == n_pixel) && (out_idx == n_pixel) && (peek(c.io.select.ready)==1)) {

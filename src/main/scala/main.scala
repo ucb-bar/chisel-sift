@@ -29,6 +29,15 @@ object SIFT {
                 "data/count.im8","data/debug.im8","data/debug_coord.im24")
             }
       }
+
+      // Only for generating verilog to hook in to Zedboard Xillydemo system
+      case "Zedboard" => {
+        chiselMain(tutArgs, 
+          () => Module(new ScaleSpaceExtrema(
+            new ImageType(640,480,24), n_oct=1)
+          )
+        )
+      }
     }
   }
 }
