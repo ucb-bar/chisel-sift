@@ -4,6 +4,8 @@ emulator
 verilog
 data/in.im24
 data/out.im24
+data/control.csv
+data/debug.csv
 data/coord.im24
 data/debug.im8
 data/debug_coord.im24
