@@ -24,11 +24,11 @@ you will need to produce or specify the input file and control sequence.
 There are several useful test cases included in the data directory already,
 to use one of them add a symlink from the data directory:
 
-`ln -s smiley.im24 in.im24
+`ln -s smiley.im24 in.im24`
 
 The same can be used for some default control sequences in data. Then just
 
-`make
+`make`
 
 should create an test the top-level Chisel module ScaleSpaceExtrema, producing
 the output image.
@@ -44,11 +44,11 @@ through the pipeline unaltered. In this mode the design reads from data/count.im
 and data/debug.csv by default, producing images data/debugn.im8 and
 data/debug\_coord.im24.
 
-`make debug
+`make debug`
 
 When switching between debug and regular mode, I suggest running
 
-`make clean
+`make clean`
 
 TODO
 ====
