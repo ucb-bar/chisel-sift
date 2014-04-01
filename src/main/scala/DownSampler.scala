@@ -2,17 +2,17 @@ package SIFT
 
 import Chisel._
 
-class DownSampler(it: ImageType) extends Module {
+class DownSampler(params: SSEParams) extends Module {
   val io = new Bundle {
-    val in = Decoupled(UInt(width=it.dwidth)).flip
-    val out = Decoupled(UInt(width=it.dwidth))
+    val in = Decoupled(UInt(width=params.it.dwidth)).flip
+    val out = Decoupled(UInt(width=params.it.dwidth))
   }
 
   io.in.ready := io.out.ready
 
   io.out.bits := io.in.bits
 
-  val col_counter = Module(new Counter(it.width-1))
+  val col_counter = Module(new Counter(params.it.width-1))
   col_counter.io.en := io.in.fire()
 
   val row_active = Reg(init = Bool(true))

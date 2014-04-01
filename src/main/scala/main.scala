@@ -9,34 +9,48 @@ object SIFT {
     
     args(0) match {
       case "ScaleSpaceExtrema" => {
-        val img = Image("data/in.im24")
+        val params = SSEParams(
+          it = ImageType("data/in.im24"),
+          n_oct = 1
+        )
 
-        chiselMainTest(tutArgs,
-          () => Module(new ScaleSpaceExtrema(
-            new ImageType(img.w, img.h, img.d), n_oct=1))) {
-              c => new ScaleSpaceExtremaTests(c, "data/control.csv",
-                "data/in.im24","data/out.im24","data/coord.im24")
-            }
+        val ftp = FileTestParams(
+          "data/control.csv",
+          "data/in.im24",
+          "data/out.im24",
+          "data/coord.im24"
+        )
+
+        chiselMainTest(tutArgs, () => Module(new ScaleSpaceExtrema(params)))
+          {c => new SSEFileTest(c, ftp)}
       }
 
       case "Debug" => {
-        val img = Image("data/count.im8")
+        val params = SSEParams(
+          it = ImageType("data/count.im8"),
+          n_oct = 1,
+          coeff = StdCoeff.CenterKernel
+        )
 
-        chiselMainTest(tutArgs,
-          () => Module(new ScaleSpaceExtrema(
-            new ImageType(img.w, img.h, img.d), n_oct=1, debug=true))) {
-              c => new ScaleSpaceExtremaTests(c, "data/debug.csv",
-                "data/count.im8","data/debug.im8","data/debug_coord.im24")
-            }
+        val ftp = FileTestParams(
+          "data/debug.csv",
+          "data/count.im8",
+          "data/debug.im8",
+          "data/debug_coord.im24"
+        )
+
+        chiselMainTest(tutArgs, () => Module(new ScaleSpaceExtrema(params)))
+          {c => new SSEFileTest(c, ftp)}
       }
 
       // Only for generating verilog to hook in to Zedboard Xillydemo system
       case "Zedboard" => {
-        chiselMain(tutArgs, 
-          () => Module(new ScaleSpaceExtrema(
-            new ImageType(640,480,24), n_oct=1)
-          )
+        val params = SSEParams(
+          it = new ImageType(640,480,24),
+          n_oct = 1
         )
+
+        chiselMain(tutArgs, () => Module(new ScaleSpaceExtrema(params)))
       }
     }
   }

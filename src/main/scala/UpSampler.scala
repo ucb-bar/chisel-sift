@@ -2,23 +2,22 @@ package SIFT
 
 import Chisel._
 
-class UpSampler(it: ImageType) extends Module{
+class UpSampler(params: SSEParams) extends Module{
   val io = new Bundle{
-    val in = Decoupled(UInt(width=it.dwidth)).flip
-    val out = Decoupled(UInt(width=it.dwidth))
+    val in = Decoupled(UInt(width=params.it.dwidth)).flip
+    val out = Decoupled(UInt(width=params.it.dwidth))
   }
 
-  val buf = Mem(UInt(width=it.dwidth),it.width)
+  val buf = Mem(UInt(width=params.it.dwidth), params.it.width)
 
-  val out_col = Module(new Counter(it.width*2-1))
+  val out_col = Module(new Counter(params.it.width*2-1))
   val out_idx = out_col.io.count >> UInt(1)
 
-  val in_idx = Module(new Counter(it.width-1))
+  val in_idx = Module(new Counter(params.it.width-1))
   
   val maybe_full = Reg(init = Bool(false))
   val ptr_match = in_idx.io.count === out_idx
   
-  //when(io.in.fire() != io.out.fire()) {
   when (io.in.fire() != (out_col.io.count(0) & io.out.fire())) {
     maybe_full := io.in.fire()
   }

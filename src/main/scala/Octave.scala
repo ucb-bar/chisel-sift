@@ -7,44 +7,41 @@ import Chisel._
   * n_ext: number of possible extrema output from this octave
   * next_tap: what point in the gaussian stream to send to the next octave
   */
-class Octave(
-  it: ImageType, index: Int, n_ext: Int = 2, debug: Boolean = false, next_tap: Int = 2)
-  extends Module {
+class Octave(params: SSEParams, index: Int) extends Module {
   
   val io = new Bundle {
-    val img_in = Decoupled(UInt(width=it.dwidth)).flip
-    val coord = Valid(new Coord(it))
+    val img_in = Decoupled(UInt(width=params.it.dwidth)).flip
+    val coord = Valid(new Coord(params.it))
     
     // Debug image selection and output
     val select = UInt(INPUT,width=8)
-    val img_out = Decoupled(UInt(width=it.dwidth))
+    val img_out = Decoupled(UInt(width=params.it.dwidth))
 
     // Chain output and input
-    val next_img_in = Decoupled(UInt(width=it.dwidth)).flip
-    val next_img_out = Decoupled(UInt(width=it.dwidth))
+    val next_img_in = Decoupled(UInt(width=params.it.dwidth)).flip
+    val next_img_out = Decoupled(UInt(width=params.it.dwidth))
   }
 
   // Downsampler
-  val ds = Module(new DownSampler(it))
+  val ds = Module(new DownSampler(params))
   
   // Default connection to input image
   ds.io.in.bits := io.img_in.bits
   ds.io.in.valid := io.img_in.valid
   io.img_in.ready := ds.io.in.ready
 
-  val it_div_2 = it.subsample()
+  val params_div_2 = params.copy(it = params.it.subsample())
 
   // Upsampler
-  val us = Module(new UpSampler(it_div_2))
+  val us = Module(new UpSampler(params_div_2))
 
   // Chain of gaussian blurs
-  val n_gauss = n_ext + 3
-  val gauss = Range(0, n_gauss).map(i => Module(new Gaussian(it_div_2, debug=debug)))
+  val n_gauss = params.n_ext + 3
+  val gauss = Range(0, n_gauss).map(i => Module(new Gaussian(params_div_2)))
   
   // Delayed Difference modules
-  val n_diff = n_ext + 2
-  val diff = Range(0, n_diff).map(
-    i => Module(new DelayDiff(it_div_2, gauss(i).n_tap)))
+  val n_diff = params.n_ext + 2
+  val diff = Range(0, n_diff).map(i => Module(new DelayDiff(params_div_2)))
   
   // Wire Gaussian chain and difference modules
   gauss(0).io.in.bits := ds.io.out.bits
@@ -87,16 +84,15 @@ class Octave(
       (if(i+1 < n_gauss) gauss(i+1).io.in.ready else Bool(true)) & 
       (if(i < n_diff) diff(i).io.a.ready else Bool(true)) & 
       (if(i > 0) diff(i-1).io.b.ready else Bool(true)) &
-      (if(i==next_tap) io.next_img_out.ready else Bool(true))
+      (if(i==params.next_tap) io.next_img_out.ready else Bool(true))
     )
   }
 
   // Wire downstream octave image to selected gaussian tap
-  io.next_img_out.bits := gauss(next_tap).io.out.bits
+  io.next_img_out.bits := gauss(params.next_tap).io.out.bits
 
   // Will this create combinational loops?
-  io.next_img_out.valid := gauss(next_tap).io.out.fire()
-  //gauss(next_tap).io.out.ready := io.next_img_out.ready
+  io.next_img_out.valid := gauss(params.next_tap).io.out.fire()
 
   // Debug image output stream selection
   // When our index is the active source, select an internal stream

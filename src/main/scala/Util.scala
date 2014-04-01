@@ -8,6 +8,13 @@ case class ImageType(width:Int, height:Int, dwidth: Int = 8) {
   }
 }
 
+object ImageType {
+  def apply(filename: String): ImageType = {
+    val img = Image(filename)
+    new ImageType(img.w, img.h, img.d)
+  }
+}
+
 class Pixel extends Bundle {
   val r = UInt(width = 8)
   val g = UInt(width = 8)

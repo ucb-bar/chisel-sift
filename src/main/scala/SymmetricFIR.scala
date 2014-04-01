@@ -14,32 +14,27 @@ object StdCoeff {
   * n_tap: number of taps in a filter
   * dwidth: bit width of elements
   * coeff: coefficients of symmetric FIR filter, listed from outer to center
+  * mul_delay: delay from shifters to adder input
+  * sum_delay: delay from adder tree. Determines number of retiming registers
   */
-class SymmetricFIR(
-  delay: Int, line: Int, n_tap: Int, dwidth : Int = 8, 
-  coeff: List[UInt] = StdCoeff.GaussKernel) extends Module{
+class SymmetricFIR(params: SSEParams, delay: Int, line: Int) extends Module{
+  //delay: Int, line: Int, n_tap: Int, dwidth : Int = 8, 
+  //coeff: List[UInt] = StdCoeff.GaussKernel) extends Module{
 
   val io = new Bundle {
-    val in = Decoupled(UInt(width = dwidth)).flip
-    val out = Decoupled(UInt(width = dwidth))
+    val in = Decoupled(UInt(width = params.it.dwidth)).flip
+    val out = Decoupled(UInt(width = params.it.dwidth))
   }
 
-  // Delay from shifters to adder input
-  val mul_delay = 1
-
-  // Delay from adder tree. Determines number of retiming registers
-  val sum_delay = 1
-
   // Count (zero index - 1) of middle tap (number of pathways)
-  val mid_tap = (n_tap+1)/2
+  val mid_tap = (params.n_tap+1)/2
 
   // Delay from first input to terms arriving at adder
-  val term_delay = (mid_tap-1) * delay + mul_delay
+  val term_delay = (mid_tap-1) * delay + params.mul_delay
   
   // Delay from first element in to first element out
-  val total_delay = term_delay + sum_delay
+  val total_delay = term_delay + params.sum_delay
   
-  //val advance = Mux(state === s_prime, io.in.valid, io.out.ready)
   val advance = Bool()
 
   // Count inputs until pipeline is primed
@@ -47,7 +42,7 @@ class SymmetricFIR(
   in_counter.io.en := io.in.fire()
 
   // Counter for line to disable terms when at edges
-  val term_en = Bool() //Reg(init = Bool(false))
+  val term_en = Bool() 
   
   val term_counter = Module(new Counter(UInt(delay*line-1)))
   term_counter.io.en := term_en & advance
@@ -109,17 +104,17 @@ class SymmetricFIR(
   val mul_in = Vec(TapDelayLineEn(io.in.bits, delay, advance, mid_tap))
   
   // Element-wise multiplication of coeff and delay elements
-  val mul_out = (coeff, mul_in).zipped.map( _ * _ )
+  val mul_out = (params.coeff, mul_in).zipped.map( _ * _ )
   
   // Insert multiplier retiming registers
-  val mul_out_d = Vec(mul_out.map(ShiftRegisterEn(_, mul_delay, advance)))
+  val mul_out_d = Vec(mul_out.map(ShiftRegisterEn(_, params.mul_delay, advance)))
 
   // Collect all terms to sum
-  val terms = Vec.fill(n_tap) { UInt(width=2*dwidth) }
+  val terms = Vec.fill(params.n_tap) { UInt(width=2*params.it.dwidth) }
   terms(mid_tap-1) := mul_out_d(mid_tap-1)
  
   // Disable terms at edges of lines
-  val term_enable = Vec.fill(n_tap) { Bool() }
+  val term_enable = Vec.fill(params.n_tap) { Bool() }
   term_enable(mid_tap-1) := Bool(true)
 
   for (tap_idx <- 0 until mid_tap - 1) {
@@ -134,21 +129,21 @@ class SymmetricFIR(
       term_enable(tap_idx),
       ShiftRegisterEn(
         mul_out_d(tap_idx),
-        (n_tap-(2*tap_idx)-1)*delay,
+        (params.n_tap-(2*tap_idx)-1)*delay,
         advance),
       UInt(0))
 
     // Low-side muxes
-    term_enable(n_tap-tap_idx-1) := (
+    term_enable(params.n_tap-tap_idx-1) := (
       term_counter.io.count < UInt((line-n_blocked)*delay))
 
-    terms(n_tap-tap_idx-1) := Mux(
-      term_enable(n_tap-tap_idx-1),
+    terms(params.n_tap-tap_idx-1) := Mux(
+      term_enable(params.n_tap-tap_idx-1),
       mul_out_d(tap_idx),
       UInt(0))
   }
 
   val sum = terms.reduceRight( _ + _ )
-  val sum_d = ShiftRegisterEn(sum(15,8), sum_delay, advance) 
+  val sum_d = ShiftRegisterEn(sum(15,8), params.sum_delay, advance) 
   io.out.bits := sum_d
 }

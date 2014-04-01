@@ -2,16 +2,16 @@ package SIFT
 
 import Chisel._
 
-class DelayDiff(it: ImageType, n_tap: Int = 5) extends Module{
+class DelayDiff(params: SSEParams) extends Module{
   val io = new Bundle{
-    val a = Decoupled(UInt(width=it.dwidth)).flip
-    val b = Decoupled(UInt(width=it.dwidth)).flip
-    val out = Decoupled(UInt(width=it.dwidth))
+    val a = Decoupled(UInt(width=params.it.dwidth)).flip
+    val b = Decoupled(UInt(width=params.it.dwidth)).flip
+    val out = Decoupled(UInt(width=params.it.dwidth))
   }
   
-  val mid_tap = (n_tap+1)/2
+  val mid_tap = (params.n_tap+1)/2
 
-  val q = Module(new Queue(UInt(width=it.dwidth), mid_tap*it.width))
+  val q = Module(new Queue(UInt(width=params.it.dwidth), mid_tap*params.it.width))
 
   q.io.enq <> io.a
 
