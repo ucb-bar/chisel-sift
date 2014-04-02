@@ -98,6 +98,94 @@ class ScaleSpaceExtrema(val params: SSEParams) extends Module {
     io.img_out.bits := oct(0).io.img_out.bits
 }
 
+class SSEStreamer(val sse: ScaleSpaceExtrema) {
+  //val n_byte = inPic.d/8
+  val n_byte = sse.params.it.dwidth/8
+  
+  //val n_pixel = inPic.w * inPic.h
+  val n_pixel = sse.params.it.width * sse.params.it.height
+   
+  def process(tester: Tester, img_in: Image, select: Int, timeout: Int = 1000): (Int,Image,Image) = {
+    val img_out = Image(img_in.w, img_in.h, img_in.d)
+    val img_coord = Image(img_in.w, img_in.h, 24)
+
+    var in_idx = 0
+    var out_idx = 0
+
+    var time = 0
+    
+    var triplet = 0
+    var pixel = 0
+    
+    reset()
+    step(1)
+    
+    poke(c.io.img_in.valid, 0)
+    poke(c.io.select.bits, select)
+    poke(c.io.select.valid, 1)
+    step(1)
+
+    while((time < timeout) && (peek(c.io.select.ready) != 1)) {
+      step(1)
+      time += 1
+    }
+
+    while ((time < timeout) && (in_idx < n_pixel || out_idx < n_pixel)) {
+      
+      if (in_idx < n_pixel) {
+        triplet = 0
+        for (j <- 0 until n_byte) {
+          pixel = img_in.data(n_byte*in_idx+j)
+          if (pixel < 0) pixel += 256
+          triplet += pixel << (8*j)
+        }
+        
+        poke(c.io.img_in.bits, triplet)
+        poke(c.io.img_in.valid, 1)
+      } else {
+        poke(c.io.img_in.valid, 0)
+      }
+
+      poke(c.io.select.valid, 0)
+      poke(c.io.img_out.ready, 1)
+      step(1)
+      
+      if ((in_idx < n_pixel) && (peek(c.io.img_in.ready)==1)) {
+        in_idx += 1
+        time = 0
+      } else {
+        time += 1
+      }
+      
+      if((out_idx < n_pixel) && peek(c.io.img_out.valid)==1) {
+        // Write debug image out
+        val out_triplet = peek(c.io.img_out.bits)
+
+        for (j <- 0 until n_byte) {
+          img_out.data((n_byte*out_idx)+j) = ((out_triplet >> (8*j)) & 0xFF).toByte
+        }
+        
+        // Color pixel red if outputting valid coord, grey otherwise
+        val coordpix = if (peek(c.io.coord.valid)==1) 0xFF0000 else 0x808080  
+        for (j <- 0 until 3) {
+          img_coord.data(3*out_idx+j) = ((coordpix >> (8*j)) & 0xFF).toByte
+        }
+
+        out_idx += 1
+        time = 0
+      } else {
+        time += 1
+      }
+    }
+    
+    poke(c.io.img_in.valid,0)
+
+    step(10)
+    
+    (time, img_out, img_coord)
+  }
+}
+
 case class FileTestParams(
   ctrl: String, 
   img_in: String,
@@ -123,111 +211,40 @@ class SSEFileTest(c: ScaleSpaceExtrema, ftp: FileTestParams)
   println("Ctrl Inputs: " + ctrl)
   val n_ctrl = ctrl.length
   
-  val inPic = Image(ftp.img_in)
-  val imgPic = Image(inPic.w, inPic.h, inPic.d)
-  val coordPic = Image(inPic.w, inPic.h, 24)
-  val n_byte = inPic.d/8
-  val n_pixel = inPic.w * inPic.h
+  val img_in = Image(ftp.img_in)
+  println("w=" + img_in.w + " h=" + img_in.h + " d=" + img_in.d)
+
+  val streamer = SSEStreamer(c)
   
-  println("w=" + inPic.w + " h=" + inPic.h + " d=" + inPic.d)
+  var time: Int
+  var img_out: Image
+  var img_coord: Image
 
-  var ctrl_idx = 0
-  var in_idx = n_pixel
-  var out_idx = n_pixel
+  val timeout = 1000
 
-  var timeout = 0
-  
-  var triplet = 0
-  var pixel = 0
-  
-  poke(c.io.img_in.valid, 0)
-  poke(c.io.select.valid, 0)
-  step(1)
+  var any_passed = false
+  var all_passed = true
 
-  while ((timeout < 1000) && (ctrl_idx < ctrl.length) ||
-    ((ctrl_idx == ctrl.length) && (in_idx < n_pixel || out_idx < n_pixel))) {
-    
-    if (ctrl_idx < ctrl.length) {
-      poke(c.io.select.bits, ctrl(ctrl_idx))
-      poke(c.io.select.valid, 1)
+  for (i <- 0 until n_ctrl) {
+    println("Submitting image " + i)
+
+    //(time, img_out, img_coord) = streamer.process(img_in, ctrl[i], timeout)
+
+    if (time == timeout) {
+      println("Timeout on image " + i)
+      all_passed = false
     } else {
-      poke(c.io.select.valid, 0)
-    }
-    
-    if (in_idx < n_pixel) {
-      triplet = 0
-      for (j <- 0 until n_byte) {
-        pixel = inPic.data(n_byte*in_idx+j)
-        if (pixel < 0) pixel += 256
-        triplet += pixel << (8*j)
-      }
+      any_passed = true
       
-      poke(c.io.img_in.bits, triplet)
-      poke(c.io.img_in.valid, 1)
-      
-    } else {
-      poke(c.io.img_in.valid, 0)
-    }
-
-    poke(c.io.img_out.ready, 1)
-    step(1)
-    
-    if((in_idx == n_pixel) && (out_idx == n_pixel) && (peek(c.io.select.ready)==1)) {
-      println("Submitting image " + ctrl_idx)
-      
-      if (ctrl_idx < n_ctrl) {
-        // Reset design to clear all pipeline state
-        reset()
-        step(1)
-        in_idx = 0
-        out_idx = 0
-        timeout = 0
-      }
-    } else {
-      if ((in_idx < n_pixel) && (peek(c.io.img_in.ready)==1)) {
-        in_idx += 1
-        timeout = 0
-      } else {
-        timeout += 1
-      }
-    }
-
-    if((ctrl_idx < n_ctrl) && (out_idx < n_pixel && peek(c.io.img_out.valid)==1)) {
-      // Write debug image out
-      val out_triplet = peek(c.io.img_out.bits)
-
-      for (j <- 0 until n_byte) {
-        imgPic.data((n_byte*out_idx)+j) = ((out_triplet >> (8*j)) & 0xFF).toByte
-      }
-
-      if (out_idx == n_pixel - 1) {
-        val img_list = ftp.img_out.split("\\.").toList
-        val (img_base, img_ext) = img_list.splitAt(img_list.length-1)
-        val img_name = img_base(0) + ctrl_idx + "." + img_ext(0)
-        println("Writing " + img_name)
-        imgPic.write(img_name)
-        
-        ctrl_idx += 1
-      }
-      
-      // Color pixel red if outputting valid coord, grey otherwise
-      val coordpix = if (peek(c.io.coord.valid)==1) 0xFF0000 else 0x808080  
-      for (j <- 0 until 3) {
-        coordPic.data(3*out_idx+j) = ((coordpix >> (8*j)) & 0xFF).toByte
-      }
-
-      out_idx += 1
-      timeout = 0
+      val img_list = ftp.img_out.split("\\.").toList
+      val (img_base, img_ext) = img_list.splitAt(img_list.length-1)
+      val img_name = img_base(0) + i + "." + img_ext(0)
+      println("Writing " + img_name)
+      img_out.write(img_name)
     }
   }
-  
-  poke(c.io.img_in.valid,0)
-  
-  step(10)
-  
-  println("InIdx: " + in_idx + ", OutIdx: " + out_idx + ", Cycle: " + timeout)
-  coordPic.write(ftp.coord)
 
-  ok = true
+  img_coord.write(ftp.coord)
+  
+  ok = all_passed && any_passed
 }
-
