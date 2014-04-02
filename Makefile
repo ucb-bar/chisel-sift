@@ -46,4 +46,7 @@ verilog/%.v: source/*.scala
 zedboard: source/*.scala
 	$(SBT) "run Zedboard --genHarness --backend v --targetDir verilog $(CHISEL_FLAGS)"
 
+random_16_12_5: source/*.scala
+	$(SBT) "run Random_16_12_5 --genHarness --compile --test --backend c --targetDir emulator --vcd --debug $(CHISEL_FLAGS)" | tee emulator/random_16_12_5
+
 .PHONY: top outs all exec check clean verilog debug

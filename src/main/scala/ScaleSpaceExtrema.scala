@@ -4,6 +4,7 @@ import Chisel._
 
 import scala.io.Source
 import java.io.File
+import scala.util.Random
 
 case class SSEParams(
   it: ImageType, 
@@ -35,7 +36,6 @@ class ScaleSpaceExtrema(val params: SSEParams) extends Module {
   in_count.io.en := io.img_in.fire()
   
   // Allow changing source when stream is not in process
-  //val select_ready = Reg(init = Bool(true))
   io.select.ready := (
     !io.img_in.valid &
     (in_count.io.out.row === UInt(0)) &
@@ -241,4 +241,83 @@ class SSEFileTester(c: ScaleSpaceExtrema, ftp: FileTesterParams)
   img_coord.write(ftp.coord)
   
   ok = all_passed && any_passed
+}
+
+class SSERandomTester(c: ScaleSpaceExtrema) extends SSETester(c) {
+  val rand_img = Image(width, height, dwidth)
+  val rng = new scala.util.Random(42)
+  rng.nextBytes(rand_img.data)
+  rand_img.write("data/rand.im8")
+
+  process(rand_img, 1, 1000)
+  img_out.write("data/out.im8")
+
+  val img_ds = downsample(rand_img)
+  img_ds.write("data/ds.im8")
+  
+  val img_us = upsample(img_ds)
+  img_us.write("data/us.im8")
+
+  println("Check: " + check_img_out(img_us))
+
+  def downsample(img_in: Image) = {
+    val img_ds = Image(img_in.w/2, img_in.h/2, img_in.d)
+    for (i <- 0 until img_ds.h) {
+      for (j <- 0 until img_ds.w) {
+        img_ds.data(i*img_ds.w + j) = img_in.data(2*i*img_in.w + 2*j)
+      }
+    }
+    img_ds
+  }
+  
+  def window(img: Image, row: Int, col: Int) = {
+    val win = Array.fill(c.params.n_tap)(Array.fill(c.params.n_tap)(0))
+    val mid = c.params.n_tap/2
+
+    var r_idx = 0
+    var c_idx = 0
+
+    for (i <- 0 until c.params.n_tap) {
+      r_idx = row-mid+i
+      for (j <- 0 until c.params.n_tap) {
+        c_idx = col-mid+j
+        if (r_idx >= 0 && r_idx < img.h && c_idx >= 0 && c_idx < img.w) {
+          win(i)(j) = img.data(r_idx*img.w + c_idx)
+        }
+      }
+    }
+    win
+  }
+  
+  def sym_fir(vals: Array[Int], coeff: List[Int]) = {
+    all_coeff = coeff ++ coeff.reverse.tail
+    (vals, all_coeff).zipped.map(_ * _).reduceRight(_ + _)
+  }
+
+  def gauss(img_in: Image) = {
+    val int_coeff = c.params.coeff.map(_.litValue)
+    val img_gauss = Image(img_in.w, img_in.h, img_in.d)
+    for (i <- 0 until img_gauss.h) {
+      for (j <- 0 until img_gauss.w) {
+        val win = window(img_in, i, j)
+        val pix = sym_fir(win.map(sym_fir(_,int_coeff)),int_coeff)
+        img_gauss.data(i*img_gauss.w + j) = pix
+      }
+    }
+    img_gauss
+  }
+
+  def upsample(img_in: Image) = {
+    val img_us = Image(img_in.w*2, img_in.h*2, img_in.d)
+    for (i <- 0 until img_us.h) {
+      for (j <- 0 until img_us.w) {
+        img_us.data(i*img_us.w + j) = img_in.data((i/2)*img_in.w + (j/2))
+      }
+    }
+    img_us
+  }
+
+  def check_img_out(img_exp: Image) = {
+    (img_out.data, img_exp.data).zipped.map(_ == _).reduceRight(_ && _)
+  }
 }
