@@ -98,21 +98,23 @@ class ScaleSpaceExtrema(val params: SSEParams) extends Module {
     io.img_out.bits := oct(0).io.img_out.bits
 }
 
-class SSEStreamer(val sse: ScaleSpaceExtrema) {
-  //val n_byte = inPic.d/8
-  val n_byte = sse.params.it.dwidth/8
-  
-  //val n_pixel = inPic.w * inPic.h
-  val n_pixel = sse.params.it.width * sse.params.it.height
-   
-  def process(tester: Tester, img_in: Image, select: Int, timeout: Int = 1000): (Int,Image,Image) = {
-    val img_out = Image(img_in.w, img_in.h, img_in.d)
-    val img_coord = Image(img_in.w, img_in.h, 24)
+class SSETester(c: ScaleSpaceExtrema) extends Tester(c, false) {
+  val dwidth = c.params.it.dwidth
+  val width = c.params.it.width
+  val height = c.params.it.height
 
+  val n_byte = dwidth/8
+  val n_pixel = width * height
+  
+  val img_out = Image(width, height, dwidth)
+  val img_coord = Image(width, height, 24)
+
+  var time = 0
+  
+  def process(img_in: Image, select: Int, timeout: Int = 1000) = {
+    
     var in_idx = 0
     var out_idx = 0
-
-    var time = 0
     
     var triplet = 0
     var pixel = 0
@@ -162,11 +164,12 @@ class SSEStreamer(val sse: ScaleSpaceExtrema) {
         val out_triplet = peek(c.io.img_out.bits)
 
         for (j <- 0 until n_byte) {
-          img_out.data((n_byte*out_idx)+j) = ((out_triplet >> (8*j)) & 0xFF).toByte
+          img_out.data((n_byte*out_idx)+j) = 
+            ((out_triplet >> (8*j)) & 0xFF).toByte
         }
         
         // Color pixel red if outputting valid coord, grey otherwise
-        val coordpix = if (peek(c.io.coord.valid)==1) 0xFF0000 else 0x808080  
+        val coordpix = if (peek(c.io.coord.valid)==1) 0xFF0000 else 0x808080
         for (j <- 0 until 3) {
           img_coord.data(3*out_idx+j) = ((coordpix >> (8*j)) & 0xFF).toByte
         }
@@ -179,22 +182,19 @@ class SSEStreamer(val sse: ScaleSpaceExtrema) {
     }
     
     poke(c.io.img_in.valid,0)
-
     step(10)
-    
-    (time, img_out, img_coord)
   }
 }
 
-case class FileTestParams(
+case class FileTesterParams(
   ctrl: String, 
   img_in: String,
   img_out: String,
   coord: String
 )
 
-class SSEFileTest(c: ScaleSpaceExtrema, ftp: FileTestParams) 
-  extends Tester(c, false) {
+class SSEFileTester(c: ScaleSpaceExtrema, ftp: FileTesterParams) 
+  extends SSETester(c) {
 
   var ctrl = List(0x00)
 
@@ -211,14 +211,8 @@ class SSEFileTest(c: ScaleSpaceExtrema, ftp: FileTestParams)
   println("Ctrl Inputs: " + ctrl)
   val n_ctrl = ctrl.length
   
-  val img_in = Image(ftp.img_in)
-  println("w=" + img_in.w + " h=" + img_in.h + " d=" + img_in.d)
-
-  val streamer = SSEStreamer(c)
-  
-  var time: Int
-  var img_out: Image
-  var img_coord: Image
+  val file_img_in = Image(ftp.img_in)
+  println("w=" + file_img_in.w + " h=" + file_img_in.h + " d=" + file_img_in.d)
 
   val timeout = 1000
 
@@ -228,7 +222,7 @@ class SSEFileTest(c: ScaleSpaceExtrema, ftp: FileTestParams)
   for (i <- 0 until n_ctrl) {
     println("Submitting image " + i)
 
-    //(time, img_out, img_coord) = streamer.process(img_in, ctrl[i], timeout)
+    process(file_img_in, ctrl(i), timeout)
 
     if (time == timeout) {
       println("Timeout on image " + i)

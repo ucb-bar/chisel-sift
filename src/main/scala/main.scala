@@ -14,7 +14,7 @@ object SIFT {
           n_oct = 1
         )
 
-        val ftp = FileTestParams(
+        val ftp = FileTesterParams(
           "data/control.csv",
           "data/in.im24",
           "data/out.im24",
@@ -22,7 +22,7 @@ object SIFT {
         )
 
         chiselMainTest(tutArgs, () => Module(new ScaleSpaceExtrema(params)))
-          {c => new SSEFileTest(c, ftp)}
+          {c => new SSEFileTester(c, ftp)}
       }
 
       case "Debug" => {
@@ -32,7 +32,7 @@ object SIFT {
           coeff = StdCoeff.CenterKernel
         )
 
-        val ftp = FileTestParams(
+        val ftp = FileTesterParams(
           "data/debug.csv",
           "data/count.im8",
           "data/debug.im8",
@@ -40,7 +40,7 @@ object SIFT {
         )
 
         chiselMainTest(tutArgs, () => Module(new ScaleSpaceExtrema(params)))
-          {c => new SSEFileTest(c, ftp)}
+          {c => new SSEFileTester(c, ftp)}
       }
 
       // Only for generating verilog to hook in to Zedboard Xillydemo system
