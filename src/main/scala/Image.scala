@@ -43,7 +43,7 @@ object Image {
   }
   def apply(w: Int, h: Int, d: Int): Image = {
     var dat = new Array[Byte](w*h*d/8)
-    println("CREATING IMAGE OF LEN " + dat.length)
+    //println("CREATING IMAGE OF LEN " + dat.length)
     new Image(w, h, d, dat)
   }
 }

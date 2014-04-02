@@ -245,20 +245,64 @@ class SSEFileTester(c: ScaleSpaceExtrema, ftp: FileTesterParams)
 
 class SSERandomTester(c: ScaleSpaceExtrema) extends SSETester(c) {
   val rand_img = Image(width, height, dwidth)
-  val rng = new scala.util.Random(42)
+  val rng = new scala.util.Random()
   rng.nextBytes(rand_img.data)
-  rand_img.write("data/rand.im8")
 
-  process(rand_img, 1, 1000)
-  img_out.write("data/out.im8")
+  val n_g = c.params.n_ext + 3
+  val n_d = c.params.n_ext + 2
 
-  val img_ds = downsample(rand_img)
-  img_ds.write("data/ds.im8")
+  var any_passed = false
+  var all_passed = true
   
-  val img_us = upsample(img_ds)
-  img_us.write("data/us.im8")
+  val timeout = 1000
+  for (select <- 0 until 2 + n_g + n_d) {
+    process(rand_img, select, timeout)
+    val img_exp = expectedImage(rand_img, select)
+    img_out.write("data/out%d.im8".format(select))
+    img_exp.write("data/exp%d.im8".format(select))
+    val passed = (time < timeout) && check_img_out(img_exp)
+    println("Check %d: %b".format(select,passed))
+    if (passed) {
+      any_passed = true
+    } else {
+      all_passed = false
+    }
+  }
 
-  println("Check: " + check_img_out(img_us))
+  ok = all_passed && any_passed
+  
+  def expectedImage(img_in: Image, select: Int) = {
+    if (select==0) {
+      img_in
+    } else if (select < (2 + n_g)) {
+      upsample(gauss(downsample(img_in), select-1))
+    } else if (select < (2 + n_g + n_d)) {
+      upsample(diff(downsample(img_in), select-n_g-1))
+    } else {
+      img_in
+    }
+  }
+
+  // Why doesn't this work?
+  def im24ToIm8(im24: Image) = {
+    val im8 = Image(im24.w, im24.h, 8)
+    for (i <- 0 until im8.h) {
+      for (j <- 0 until im8.w) {
+        im8.data(i*im8.w + j) = im24.data(i*im8.w + 3*j)
+      }
+    }
+    im8
+  }
+  
+  def bars(w:Int,h:Int,d:Int) = {
+    val img = Image(w,h,d) 
+    for (i <- 0 until img.h) {
+      for (j <- 0 until img.w) {
+        img.data(i*img.w + j) = (if ((i%8 < 2) || (j%8 < 2)) 0x00 else 0xFF).toByte
+      }
+    }
+    img
+  }
 
   def downsample(img_in: Image) = {
     val img_ds = Image(img_in.w/2, img_in.h/2, img_in.d)
@@ -271,7 +315,7 @@ class SSERandomTester(c: ScaleSpaceExtrema) extends SSETester(c) {
   }
   
   def window(img: Image, row: Int, col: Int) = {
-    val win = Array.fill(c.params.n_tap)(Array.fill(c.params.n_tap)(0))
+    val win = Array.fill(c.params.n_tap)(Array.fill(c.params.n_tap)(0.toByte))
     val mid = c.params.n_tap/2
 
     var r_idx = 0
@@ -289,22 +333,41 @@ class SSERandomTester(c: ScaleSpaceExtrema) extends SSETester(c) {
     win
   }
   
-  def sym_fir(vals: Array[Int], coeff: List[Int]) = {
-    all_coeff = coeff ++ coeff.reverse.tail
-    (vals, all_coeff).zipped.map(_ * _).reduceRight(_ + _)
+  def sym_fir(vals: Array[Byte], coeff: List[Int]) = {
+    val all_coeff = coeff ++ coeff.reverse.tail
+    (((vals, all_coeff).zipped.map(byteToInt(_) * _).sum >> 8) & 0xFF).toByte
   }
 
-  def gauss(img_in: Image) = {
-    val int_coeff = c.params.coeff.map(_.litValue)
-    val img_gauss = Image(img_in.w, img_in.h, img_in.d)
-    for (i <- 0 until img_gauss.h) {
-      for (j <- 0 until img_gauss.w) {
-        val win = window(img_in, i, j)
-        val pix = sym_fir(win.map(sym_fir(_,int_coeff)),int_coeff)
-        img_gauss.data(i*img_gauss.w + j) = pix
+  def byteToInt(b: Byte) = {
+    if (b < 0) b.toInt + 256 else b.toInt
+  }
+
+  def gauss(img_in: Image, n_gauss: Int = 1): Image = {
+    if(n_gauss == 0) {
+      img_in
+    } else if(n_gauss == 1) {
+      val int_coeff = c.params.coeff.map(_.litValue().toInt)
+      val img_gauss = Image(img_in.w, img_in.h, img_in.d)
+      for (i <- 0 until img_gauss.h) {
+        for (j <- 0 until img_gauss.w) {
+          val win = window(img_in, i, j)
+          val row_fir = win.map(sym_fir(_,int_coeff))
+          val pix = sym_fir(row_fir,int_coeff)
+          img_gauss.data(i*img_gauss.w + j) = pix.toByte
+        }
       }
+      img_gauss
+    } else {
+      gauss(gauss(img_in, n_gauss-1))
     }
-    img_gauss
+  }
+  
+  def diff(img_in: Image, n_diff: Int = 1) = {
+    val g0 = gauss(img_in, n_diff)
+    val g1 = gauss(g0)
+    val data : Array[Byte] = (g0.data,g1.data).zipped.map(_ - _).map(_.toByte)
+    val img_diff = new Image(img_in.w, img_in.h, img_in.d, data)
+    img_diff
   }
 
   def upsample(img_in: Image) = {
@@ -317,7 +380,7 @@ class SSERandomTester(c: ScaleSpaceExtrema) extends SSETester(c) {
     img_us
   }
 
-  def check_img_out(img_exp: Image) = {
-    (img_out.data, img_exp.data).zipped.map(_ == _).reduceRight(_ && _)
+  def check_img_out(exp: Image) = {
+    (img_out.data, exp.data).zipped.map(_ == _).reduce(_ && _)
   }
 }
