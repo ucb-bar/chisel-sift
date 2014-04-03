@@ -53,6 +53,16 @@ object SIFT {
           {c => new SSERandomTester(c) }
       }
 
+      case "Random_160_120_5" => {
+        val params = SSEParams(
+          it = new ImageType(160,120,8),
+          n_oct = 1
+        )
+
+        chiselMainTest(tutArgs, () => Module(new ScaleSpaceExtrema(params)))
+          {c => new SSERandomTester(c) }
+      }
+
       // Only for generating verilog to hook in to Zedboard Xillydemo system
       case "Zedboard" => {
         val params = SSEParams(

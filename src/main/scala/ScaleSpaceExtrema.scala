@@ -13,6 +13,7 @@ case class SSEParams(
   n_tap: Int = 5,
   next_tap: Int = 2,
   coeff: List[UInt] = StdCoeff.GaussKernel,
+  sigma: Double = 0.8,
   mul_delay: Int = 1,
   sum_delay: Int = 1
 )
@@ -258,8 +259,8 @@ class SSERandomTester(c: ScaleSpaceExtrema) extends SSETester(c) {
   for (select <- 0 until 2 + n_g + n_d) {
     process(rand_img, select, timeout)
     val img_exp = expectedImage(rand_img, select)
-    img_out.write("data/out%d.im8".format(select))
-    img_exp.write("data/exp%d.im8".format(select))
+    //img_out.write("data/out%d.im8".format(select))
+    //img_exp.write("data/exp%d.im8".format(select))
     val passed = (time < timeout) && check_img_out(img_exp)
     println("Check %d: %b".format(select,passed))
     if (passed) {

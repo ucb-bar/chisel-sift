@@ -2,7 +2,18 @@ package SIFT
 
 import Chisel._
 
+import scala.math._
+
 object StdCoeff {
+  def GaussKernel(p: SSEParams) = {
+    val n_coeff = (p.n_tap/2)-1
+    val idx = Range(0,n_coeff)
+    val coeff = idx.map(x => exp(-0.5 * pow(x-p.n_tap,2)/pow(p.sigma,2)))
+    val scale = 2*coeff.sum + 1
+    val scaled_coeff = coeff.map(x => round(256*(x/scale)))
+    val out_coeff = scaled_coeff ++ List(256-2*scaled_coeff.sum)
+    out_coeff
+  }
   val GaussKernel = List(UInt(6,8), UInt(58,8), UInt(128,8))
   val CenterKernel = List(UInt(0,8), UInt(0,8), UInt(256,9))
   val UnityKernel = List(UInt(1,8), UInt(1,8), UInt(1,8))
@@ -18,8 +29,6 @@ object StdCoeff {
   * sum_delay: delay from adder tree. Determines number of retiming registers
   */
 class SymmetricFIR(params: SSEParams, delay: Int, line: Int) extends Module{
-  //delay: Int, line: Int, n_tap: Int, dwidth : Int = 8, 
-  //coeff: List[UInt] = StdCoeff.GaussKernel) extends Module{
 
   val io = new Bundle {
     val in = Decoupled(UInt(width = params.it.dwidth)).flip
@@ -104,7 +113,10 @@ class SymmetricFIR(params: SSEParams, delay: Int, line: Int) extends Module{
   val mul_in = Vec(TapDelayLineEn(io.in.bits, delay, advance, mid_tap))
   
   // Element-wise multiplication of coeff and delay elements
-  val mul_out = (params.coeff, mul_in).zipped.map( _ * _ )
+  //val coeff = StdCoeff.GaussKernel(params)
+  val coeff = params.coeff
+  //println("Coeff:"  + coeff)
+  val mul_out = (coeff, mul_in).zipped.map( _ * _ )
   
   // Insert multiplier retiming registers
   val mul_out_d = Vec(mul_out.map(ShiftRegisterEn(_, params.mul_delay, advance)))
