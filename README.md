@@ -9,6 +9,44 @@ of gaussian and difference of gaussian calculation.
 Running SIFT
 ============
 
+To test all image stream outputs of the design with a random image, run
+
+`make Random_w_e_t`
+
+Where w, e, and t are replaced by numbers represing the width of the image,
+number of extrema outputs per octave, and number of taps in the gaussian blur.
+
+Parameter bounds: t >= 3, e >= 2, w > 8\\3\*t
+
+Rough utilization mapping:
+
+* gauss = e + 3
+* delaydiff = sub = e + 2
+* mult = floor(t\\2) \* gauss
+* reg/mem ~= w \* (floor(t\\2) \* (gauss + delaydiff))
+* runtime ~= O(e \* (w^2 \* e \* t))
+
+When this runs, you should see a printout of the SSEParams object, standard
+Chisel compile output, then several Check n: true, where n is the pipeline
+stage from 0 to 2 + gauss + diff. The Chisel tester will report PASSED if
+all checks are true.
+
+Known working configurations, roughly from smallest to largest
+(with compile\+runtime):
+
+Design | Runtime
+-------| -------
+16_2_3 | 23s 
+16_2_5 | 23s
+16_4_5 | 32s
+32_2_5 | 56s
+32_2_7 | 57s
+32_4_5 | 52s
+160_2_5| 339s
+
+Using Images
+============
+
 This design will process an input image in Sun Raster format (.ras, .im24,
 .im8) and produce an one or more debug images and a coordinate identification
 image. By default the design processes a input file data/in.im24 and
@@ -26,7 +64,8 @@ to use one of them add a symlink from the data directory:
 
 `ln -s smiley.im24 in.im24`
 
-The same can be used for some default control sequences in data. Then just
+The same link command must be used for default control sequences in data. 
+Then just
 
 `make`
 
