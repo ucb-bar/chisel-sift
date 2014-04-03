@@ -6,15 +6,19 @@ import scala.math._
 
 object StdCoeff {
   def GaussKernel(p: SSEParams) = {
-    val n_coeff = (p.n_tap/2)-1
+    val n_coeff = p.n_tap/2
     val idx = Range(0,n_coeff)
-    val coeff = idx.map(x => exp(-0.5 * pow(x-p.n_tap,2)/pow(p.sigma,2)))
-    val scale = 2*coeff.sum + 1
-    val scaled_coeff = coeff.map(x => round(256*(x/scale)))
+    val coeff = idx.map(x => exp(-0.5 * pow(x-n_coeff,2)/pow(p.sigma,2)))
+    val scale = 2.0*coeff.sum + 1.0
+    val scaled_coeff = coeff.map(x => round(256*(x/scale)).toInt)
     val out_coeff = scaled_coeff ++ List(256-2*scaled_coeff.sum)
-    out_coeff
+    out_coeff.to[List]
   }
-  val GaussKernel = List(UInt(6,8), UInt(58,8), UInt(128,8))
+  //val GaussKernel = List(UInt(6,8), UInt(58,8), UInt(128,8))
+  def CenterKernel(p: SSEParams) = {
+    val zeros = List.fill(p.n_tap/2)(0)
+    zeros ++ List(256)
+  }
   val CenterKernel = List(UInt(0,8), UInt(0,8), UInt(256,9))
   val UnityKernel = List(UInt(1,8), UInt(1,8), UInt(1,8))
   val AvgKernel = List(UInt(85,8), UInt(85,8), UInt(85,8))
@@ -113,8 +117,8 @@ class SymmetricFIR(params: SSEParams, delay: Int, line: Int) extends Module{
   val mul_in = Vec(TapDelayLineEn(io.in.bits, delay, advance, mid_tap))
   
   // Element-wise multiplication of coeff and delay elements
-  //val coeff = StdCoeff.GaussKernel(params)
-  val coeff = params.coeff
+  val coeff = StdCoeff.GaussKernel(params).map(x => UInt(x,8))
+  //val coeff = params.coeff
   //println("Coeff:"  + coeff)
   val mul_out = (coeff, mul_in).zipped.map( _ * _ )
   

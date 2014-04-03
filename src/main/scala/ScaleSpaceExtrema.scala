@@ -12,7 +12,8 @@ case class SSEParams(
   n_ext: Int = 2,
   n_tap: Int = 5,
   next_tap: Int = 2,
-  coeff: List[UInt] = StdCoeff.GaussKernel,
+  //coeff: List[UInt] = StdCoeff.GaussKernel,
+  coeff: (SSEParams) => List[Int] = StdCoeff.GaussKernel,
   sigma: Double = 0.8,
   mul_delay: Int = 1,
   sum_delay: Int = 1
@@ -321,16 +322,23 @@ class SSERandomTester(c: ScaleSpaceExtrema) extends SSETester(c) {
 
     var r_idx = 0
     var c_idx = 0
-
+    
+    //println("Window (%d,%d)".format(row,col))
+    
     for (i <- 0 until c.params.n_tap) {
       r_idx = row-mid+i
+      
+      //var strl = " "
       for (j <- 0 until c.params.n_tap) {
         c_idx = col-mid+j
         if (r_idx >= 0 && r_idx < img.h && c_idx >= 0 && c_idx < img.w) {
           win(i)(j) = img.data(r_idx*img.w + c_idx)
         }
+        //strl = strl + "%d ".format(win(i)(j))
       }
+      //println(strl)
     }
+    //println("")
     win
   }
   
@@ -347,13 +355,14 @@ class SSERandomTester(c: ScaleSpaceExtrema) extends SSETester(c) {
     if(n_gauss == 0) {
       img_in
     } else if(n_gauss == 1) {
-      val int_coeff = c.params.coeff.map(_.litValue().toInt)
+      //val int_coeff = c.params.coeff.map(_.litValue().toInt)
+      val coeff = c.params.coeff(c.params)
       val img_gauss = Image(img_in.w, img_in.h, img_in.d)
       for (i <- 0 until img_gauss.h) {
         for (j <- 0 until img_gauss.w) {
           val win = window(img_in, i, j)
-          val row_fir = win.map(sym_fir(_,int_coeff))
-          val pix = sym_fir(row_fir,int_coeff)
+          val row_fir = win.map(sym_fir(_, coeff))
+          val pix = sym_fir(row_fir, coeff)
           img_gauss.data(i*img_gauss.w + j) = pix.toByte
         }
       }
