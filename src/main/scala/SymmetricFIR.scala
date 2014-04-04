@@ -114,7 +114,7 @@ class SymmetricFIR(params: SSEParams, delay: Int, line: Int) extends Module{
   }
   
   // Create tapped delay line of inputs
-  val mul_in = Vec(TapDelayLineEn(io.in.bits, delay, advance, mid_tap))
+  val mul_in = Vec(TapDelayLineEn(io.in.bits, delay, advance, tap=mid_tap))
   
   // Element-wise multiplication of coeff and delay elements
   val coeff = StdCoeff.GaussKernel(params).map(x => UInt(x,8))

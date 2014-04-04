@@ -73,20 +73,35 @@ class ImageCounter(it: ImageType) extends Module {
 }
 
 object ShiftRegisterEn {
-  def apply[T <: Data](data: T, delay: Int, enable: Bool = Bool(true)): T = {
-    if (delay == 1) RegEnable(data, enable)
-    else RegEnable(apply(data, delay-1, enable), enable)
+  def apply[T <: Data](data: T, delay: Int, enable: Bool = Bool(true), 
+    useMem: Boolean = false): T = {
+
+    if(useMem) {
+      val buf = Mem(data, delay)
+      val ptr = Module(new Counter(delay-1))
+      ptr.io.en := enable
+      when(enable) {
+        buf(ptr.io.count) := data
+      }
+      buf(ptr.io.count)
+    } else {
+      if (delay == 1) {
+        RegEnable(data, enable)
+      } else {
+        RegEnable(apply(data, delay-1, enable), enable)
+      }
+    }
   }
 }
 
 object TapDelayLineEn {
-  def apply[T <: Data](
-    data: T, delay: Int, enable: Bool = Bool(true), tap: Int = 1): List[T] = {
+  def apply[T <: Data](data: T, delay: Int, enable: Bool = Bool(true), 
+    useMem: Boolean = false, tap: Int = 1): List[T] = {
     
     if (tap <= 1) List(data)
     else {
-      data :: apply(ShiftRegisterEn(data, delay, enable),
-      delay, enable, tap-1)
+      data :: apply(ShiftRegisterEn(data, delay, enable, useMem),
+      delay, enable, tap = tap-1)
     }
   }
 }

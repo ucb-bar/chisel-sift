@@ -65,28 +65,6 @@ class UpSampler(params: SSEParams) extends Module{
     }
   }
 
-  /*val row_in_done = Reg(init = Bool(false))
-  val row_out_done = Reg(init = Bool(true))
- 
-  val duplicate_row = row_in_done && !row_out_done
-
-  val empty = Mux(duplicate_row, Bool(false), ptr_match && !maybe_full)
-  
-  val full = Mux(duplicate_row, Bool(true), ptr_match && maybe_full)*/
-
-
-  /*when(out_col.io.top && io.out.fire()) {
-    row_out_done := ~row_out_done
-  }
-
-  when(io.in.fire()) {
-    when(in_idx.io.top) {
-      row_in_done := Bool(true)
-    } .otherwise {
-      row_in_done := Bool(false)
-    }
-  }*/
-
   out_col.io.en := io.out.fire()
 
   in_idx.io.en := io.in.fire()
