@@ -113,17 +113,26 @@ class SymmetricFIR(params: SSEParams, delay: Int, line: Int) extends Module{
     }
   }
   
-  // Create tapped delay line of inputs
-  val mul_in = Vec(TapDelayLineEn(io.in.bits, delay, advance, tap=mid_tap))
+  // Create tapped delay line of inputs, use mem by default if we are a line buffer
+  val tdl_use_mem = params.use_mem && (delay > 1)
+  val mul_in = Vec(TapDelayLineEn(
+    io.in.bits, delay, advance, use_mem = tdl_use_mem, tap=mid_tap))
   
   // Element-wise multiplication of coeff and delay elements
   val coeff = StdCoeff.GaussKernel(params).map(x => UInt(x,8))
+
   //val coeff = params.coeff
   //println("Coeff:"  + coeff)
   val mul_out = (coeff, mul_in).zipped.map( _ * _ )
   
   // Insert multiplier retiming registers
-  val mul_out_d = Vec(mul_out.map(ShiftRegisterEn(_, params.mul_delay, advance)))
+  // Why does this cause widths = -1?
+  //val mul_out_d = Vec(mul_out.map(x => ShiftRegisterEn(x, params.mul_delay, advance)))
+  val mul_out_d = Vec.fill(mul_out.length) {UInt(width=2*params.it.dwidth)}
+  val mul_out_d_list = mul_out.map(ShiftRegisterEn(_, params.mul_delay, advance))
+  for (i <- 0 until mul_out.length) {
+    mul_out_d(i) := mul_out_d_list(i)
+  }
 
   // Collect all terms to sum
   val terms = Vec.fill(params.n_tap) { UInt(width=2*params.it.dwidth) }
@@ -146,7 +155,7 @@ class SymmetricFIR(params: SSEParams, delay: Int, line: Int) extends Module{
       ShiftRegisterEn(
         mul_out_d(tap_idx),
         (params.n_tap-(2*tap_idx)-1)*delay,
-        advance),
+        advance, use_mem = tdl_use_mem),
       UInt(0))
 
     // Low-side muxes

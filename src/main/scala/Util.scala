@@ -74,16 +74,13 @@ class ImageCounter(it: ImageType) extends Module {
 
 object ShiftRegisterEn {
   def apply[T <: Data](data: T, delay: Int, enable: Bool = Bool(true), 
-    useMem: Boolean = false): T = {
+    use_mem: Boolean = false): T = {
 
-    if(useMem) {
-      val buf = Mem(data, delay)
-      val ptr = Module(new Counter(delay-1))
-      ptr.io.en := enable
-      when(enable) {
-        buf(ptr.io.count) := data
-      }
-      buf(ptr.io.count)
+    if(use_mem) {
+      val srm = Module(new ShiftRegisterMem[T](data, delay))
+      srm.io.in := data
+      srm.io.en := enable
+      srm.io.out
     } else {
       if (delay == 1) {
         RegEnable(data, enable)
@@ -94,14 +91,33 @@ object ShiftRegisterEn {
   }
 }
 
+class ShiftRegisterMem[T <: Data](
+  gen: T, delay: Int, enable: Bool = Bool(true)) extends Module {
+
+  val io = new Bundle {
+    val in = gen.clone.asInput
+    val out = gen.clone.asOutput
+    val en = Bool(INPUT)
+  }
+
+  //println("Gen: %s\nIn: %s\nOut: %s".format(gen, io.in, io.out))
+  val buf = Mem(io.in, delay)
+  val ptr = Module(new Counter(delay-1))
+  ptr.io.en := io.en
+  when(io.en) {
+    buf(ptr.io.count) := io.in
+  }
+  io.out := buf(ptr.io.count)
+}
+
 object TapDelayLineEn {
   def apply[T <: Data](data: T, delay: Int, enable: Bool = Bool(true), 
-    useMem: Boolean = false, tap: Int = 1): List[T] = {
+    use_mem: Boolean = false, tap: Int = 1): List[T] = {
     
     if (tap <= 1) List(data)
     else {
-      data :: apply(ShiftRegisterEn(data, delay, enable, useMem),
-      delay, enable, tap = tap-1)
+      data :: apply(ShiftRegisterEn(data, delay, enable, use_mem),
+      delay, enable, use_mem, tap-1)
     }
   }
 }

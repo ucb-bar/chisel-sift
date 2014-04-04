@@ -44,6 +44,9 @@ Design | Runtime
 32_4_5 | 52s
 160_2_5| 339s
 
+By default, the design uses Mem modules for large shift registers. To force it
+to use registers, add \_r to the end of the design string (ex: Random_16_2_5_r).
+
 Using Images
 ============
 

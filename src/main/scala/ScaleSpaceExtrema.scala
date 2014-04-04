@@ -16,7 +16,8 @@ case class SSEParams(
   coeff: (SSEParams) => List[Int] = StdCoeff.GaussKernel,
   sigma: Double = 0.8,
   mul_delay: Int = 1,
-  sum_delay: Int = 1
+  sum_delay: Int = 1,
+  use_mem: Boolean = true
 )
 
 class ScaleSpaceExtrema(val params: SSEParams) extends Module {

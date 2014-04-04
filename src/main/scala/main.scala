@@ -14,12 +14,14 @@ object SIFT {
       val width = parts(1).toInt
       val n_ext = parts(2).toInt
       val n_tap = parts(3).toInt
-      
+      val use_mem = !((parts.length > 4) && (parts(4) == "r"))
+
       val params = SSEParams(
         it = new ImageType(width,3*width/4,8),
         n_ext = n_ext,
         n_tap = n_tap,
-        n_oct = 1
+        n_oct = 1,
+        use_mem = use_mem
       )
       
       println(params.toString)
