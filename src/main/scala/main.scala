@@ -28,6 +28,27 @@ object SIFT {
 
       chiselMainTest(tutArgs, () => Module(new ScaleSpaceExtrema(params)))
         {c => new SSERandomTester(c) } 
+    } else if (args(0).slice(0,9) == "VecRandom") {
+      val parts = args(0).split("_")
+      val n_par_oct = parts(1).toInt
+      val width = parts(2).toInt
+      val n_ext = parts(3).toInt
+      val n_tap = parts(4).toInt
+      val use_mem = !((parts.length > 5) && (parts(5) == "r"))
+
+      val params = SSEParams(
+        it = new ImageType(width,3*width/4,8),
+        n_par_oct= n_par_oct,
+        n_ext = n_ext,
+        n_tap = n_tap,
+        n_oct = 1,
+        use_mem = use_mem
+      )
+      
+      println(params.toString)
+
+      chiselMainTest(tutArgs, () => Module(new VecSSE(params)))
+        {c => new VecSSERandomTester(c) } 
     } else {
       args(0) match {
         case "ScaleSpaceExtrema" => {

@@ -55,4 +55,7 @@ random_160_120_5: source/*.scala
 Random_%: source/*.scala
 	$(SBT) "run $@ --genHarness --compile --test --backend c --targetDir emulator --vcd --debug $(CHISEL_FLAGS)" | tee emulator/$@.out
 
+VecRandom_%: source/*.scala
+	$(SBT) "run $@ --genHarness --compile --test --backend c --targetDir emulator --vcd --debug $(CHISEL_FLAGS)" | tee emulator/$@.out
+
 .PHONY: top outs all exec check clean verilog debug
