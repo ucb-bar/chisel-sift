@@ -30,6 +30,7 @@ emulator/outputs.xml: $(exec_outs)
 	./tools/check $(exec_outs) > $@
 
 data/debug.im8: data/count.im8 source/*.scala
+	mkdir -p emulator
 	$(SBT) "run Debug --genHarness --compile --test --backend c --targetDir emulator --vcd --debug $(CHISEL_FLAGS)" | tee emulator/Debug.out
 
 debug: data/debug.im8
@@ -47,15 +48,19 @@ zedboard: source/*.scala
 	$(SBT) "run Zedboard --genHarness --backend v --targetDir verilog $(CHISEL_FLAGS)"
 
 random_16_12_5: source/*.scala
+	mkdir -p emulator
 	$(SBT) "run Random_16_12_5 --genHarness --compile --test --backend c --targetDir emulator --vcd --debug $(CHISEL_FLAGS)" | tee emulator/random_16_12_5
 
 random_160_120_5: source/*.scala
+	mkdir -p emulator
 	$(SBT) "run Random_160_120_5 --genHarness --compile --test --backend c --targetDir emulator --vcd --debug $(CHISEL_FLAGS)" | tee emulator/random_160_120_5
 
 Random_%: source/*.scala
+	mkdir -p emulator
 	$(SBT) "run $@ --genHarness --compile --test --backend c --targetDir emulator --vcd --debug $(CHISEL_FLAGS)" | tee emulator/$@.out
 
 VecRandom_%: source/*.scala
+	mkdir -p emulator
 	$(SBT) "run $@ --genHarness --compile --test --backend c --targetDir emulator --vcd --debug $(CHISEL_FLAGS)" | tee emulator/$@.out
 
 .PHONY: top outs all exec check clean verilog debug
