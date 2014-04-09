@@ -36,16 +36,35 @@ Known working configurations, roughly from smallest to largest
 
 Design | Runtime
 -------| -------
-16_2_3 | 23s 
-16_2_5 | 23s
-16_4_5 | 32s
-32_2_5 | 56s
-32_2_7 | 57s
-32_4_5 | 52s
-160_2_5| 339s
+16\_2\_3 | 23s 
+16\_2\_5 | 23s
+16\_4\_5 | 32s
+32\_2\_5 | 56s
+32\_2\_7 | 57s
+32\_4\_5 | 52s
+160\_2\_5| 339s
 
 By default, the design uses Mem modules for large shift registers. To force it
-to use registers, add \_r to the end of the design string (ex: Random_16_2_5_r).
+to use registers, add \_r to the end of the design string (ex: Random\_16\_2\_5\_r).
+
+Vector SIFT
+===========
+
+To generate multiple parallel and completely independent designs, run
+
+`make VecRandom_n_w_e_t`
+
+where "n" is the number of parallel designs to run. The tester will shove
+different random images through each design to test them, but only actually
+tests for completion on the first octave. We are reasonably certain that
+this is OK if the individual designs work. The following VecRandom designs
+have been tested:
+
+Design | Runtime
+-------| -------
+2\_16\_2\_3 | 52s
+5\_16\_2\_5 | 127s
+
 
 Using Images
 ============

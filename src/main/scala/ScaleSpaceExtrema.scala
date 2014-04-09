@@ -43,7 +43,7 @@ class ScaleSpaceExtrema(val params: SSEParams) extends Module {
   
   // Allow changing source when stream is not in process
   io.select.ready := (
-    !io.img_in.valid &
+    !io.img_in.valid & /* Bool(false) & */// Uncomment this to force timeout
     (in_count.io.out.row === UInt(0)) &
     (in_count.io.out.col === UInt(0)) &
     (out_count.io.out.row === UInt(0)) &
@@ -107,32 +107,52 @@ class ScaleSpaceExtrema(val params: SSEParams) extends Module {
 // Wrapper to instantiate multiple SSEs
 class VecSSE(val params: SSEParams) extends Module {
   val SSEs = Range(0, params.n_par_oct).map(i => Module(new ScaleSpaceExtrema(params)))
-  val io = Vec(SSEs.map(x => x.io))
+  val io = new Bundle {
+    val units = Vec.fill(params.n_par_oct){new ScaleSpaceExtremaIO(params)}
+  }
+
+  for (i <- 0 until params.n_par_oct) {
+    io.units(i).img_in.ready := SSEs(i).io.img_in.ready
+    SSEs(i).io.img_in.valid := io.units(i).img_in.valid
+    SSEs(i).io.img_in.bits := io.units(i).img_in.bits
+    
+    io.units(i).coord.valid := SSEs(i).io.coord.valid
+    io.units(i).coord.bits := SSEs(i).io.coord.bits
+    
+    SSEs(i).io.img_out.ready := io.units(i).img_out.ready
+    io.units(i).img_out.valid := SSEs(i).io.img_out.valid
+    io.units(i).img_out.bits := SSEs(i).io.img_out.bits
+
+    
+    io.units(i).select.ready := SSEs(i).io.select.ready
+    SSEs(i).io.select.valid := io.units(i).select.valid
+    SSEs(i).io.select.bits := io.units(i).select.bits
+  }
 }
 
-class SSEStreamer(val dut_io: ScaleSpaceExtremaIO, params: SSEParams,
-  val peeker: (Bits) => BigInt, val poker: (Bits, BigInt) => Unit) {
+class SSEStreamer(private val dut_io: ScaleSpaceExtremaIO, params: SSEParams,
+  private val peeker: (Bits) => BigInt, private val poker: (Bits, BigInt) => Unit) {
   
-  val dwidth = params.it.dwidth
-  val width = params.it.width
-  val height = params.it.height
+  private val dwidth = params.it.dwidth
+  private val width = params.it.width
+  private val height = params.it.height
 
-  val n_byte = dwidth/8
-  val n_pixel = width * height
+  private val n_byte = dwidth/8
+  private val n_pixel = width * height
   
-  var img_in = Image(0,0,0)
+  private var img_in = Image(0,0,0)
 
-  val img_out = Image(width, height, dwidth)
-  val img_coord = Image(width, height, 24)
+  private val img_out = Image(width, height, dwidth)
+  private val img_coord = Image(width, height, 24)
 
-  var in_idx = 0
-  var out_idx = 0
+  private var in_idx = 0
+  private var out_idx = 0
   
-  var triplet = 0
-  var pixel = 0
+  private var triplet = 0
+  private var pixel = 0
 
-  var time = 0
-  var timeout = 1000
+  private var time = 0
+  private var timeout = 1000
 
   def init(image_in: Image, select: Int, to: Int) = {
     in_idx = 0
@@ -142,7 +162,7 @@ class SSEStreamer(val dut_io: ScaleSpaceExtremaIO, params: SSEParams,
     time = 0
     timeout = to
     img_in = image_in
-
+    
     poker(dut_io.img_in.valid, 0)
     poker(dut_io.select.bits, select)
     poker(dut_io.select.valid, 1)
@@ -225,7 +245,7 @@ class SSEStreamer(val dut_io: ScaleSpaceExtremaIO, params: SSEParams,
 
 class VecSSETester(c: VecSSE) extends Tester(c, false) {
   val streamers = Range(0,c.params.n_par_oct).map(
-    i => new SSEStreamer(c.io(i),c.params,peek,poke))
+    i => new SSEStreamer(c.io.units(i), c.params, peek, poke))
 
   def process(imgs_in: List[Image], select: Int, timeout: Int = 1000) = {
     reset()
@@ -233,22 +253,20 @@ class VecSSETester(c: VecSSE) extends Tester(c, false) {
 
     for(i <- 0 until c.params.n_par_oct) {
       streamers(i).init(imgs_in(i), select, timeout)
-      while( !streamers(i).init_done() ) {
-        step(1)
-      }
     }
+    step(1)
 
-    while( ! streamers.map(_.done()).reduce(_ && _) ) {
+    while( !streamers(0).init_done() ) {
+      step(1)
+    }
+    
+    while( ! streamers(0).done() ) {
       for(i <- 0 until c.params.n_par_oct) {
-        if(!streamers(i).done()) {
-          streamers(i).cleanup()
-        } else {
-          streamers(i).prestep()
-        }
-        step(1)
-        if(!streamers(i).done()) {
-          streamers(i).poststep()
-        }
+        streamers(i).prestep()
+      }
+      step(1)
+      for(i <- 0 until c.params.n_par_oct) {
+        streamers(i).poststep()
       }
     }
     
@@ -334,11 +352,11 @@ class SSEFileTester(c: ScaleSpaceExtrema, ftp: FileTesterParams)
       val (img_base, img_ext) = img_list.splitAt(img_list.length-1)
       val img_name = img_base(0) + i + "." + img_ext(0)
       println("Writing " + img_name)
-      streamer.img_out.write(img_name)
+      streamer.get_img_out.write(img_name)
     }
   }
 
-  streamer.img_coord.write(ftp.coord)
+  streamer.get_img_coord.write(ftp.coord)
   
   ok = all_passed && any_passed
 }
@@ -366,8 +384,11 @@ class VecSSERandomTester(c: VecSSE) extends VecSSETester(c) {
     for (i <- 0 until c.params.n_par_oct) {
       val img_exp = ImgFuncs.expectedImage(c.params, rand_imgs(i), select)
       
+      //streamers(i).get_img_out().write("data/out%d_%d.im8".format(select,i))
+      //img_exp.write("data/exp%d_%d.im8".format(select,i))
+
       val passed = (!streamers(i).has_timed_out() && 
-        ImgFuncs.check_img(streamers(i).img_out, img_exp))
+        ImgFuncs.check_img(streamers(i).get_img_out(), img_exp))
 
       println("Check %d,%d: %b, timeout:%b".format(
         select, i, passed, streamers(i).has_timed_out()))
@@ -402,7 +423,9 @@ class SSERandomTester(c: ScaleSpaceExtrema) extends SSETester(c) {
     //streamer.img_out.write("data/out%d.im8".format(select))
     //img_exp.write("data/exp%d.im8".format(select))
     
-    val passed = !streamer.has_timed_out() && ImgFuncs.check_img(streamer.img_out, img_exp)
+    val passed = (!streamer.has_timed_out() && 
+      ImgFuncs.check_img(streamer.get_img_out(), img_exp))
+
     println("Check %d: %b, timeout:%b".format(select, passed, streamer.has_timed_out()))
     
     if (passed) {
