@@ -59,6 +59,10 @@ Random_%: source/*.scala
 	mkdir -p emulator
 	$(SBT) "run $@ --genHarness --compile --test --backend c --targetDir emulator --vcd --debug $(CHISEL_FLAGS)" | tee emulator/$@.out
 
+Flo_random_%: source/*.scala
+	mkdir -p dreamer
+	$(SBT) "run Random_${*} --genHarness --compile --test --backend flo --targetDir dreamer --vcd --numCols 8 --numRows 8 $(CHISEL_FLAGS)" | tee dreamer/$@.out
+
 VecRandom_%: source/*.scala
 	mkdir -p emulator
 	$(SBT) "run $@ --genHarness --compile --test --backend c --targetDir emulator --vcd --debug $(CHISEL_FLAGS)" | tee emulator/$@.out
