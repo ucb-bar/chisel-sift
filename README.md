@@ -111,6 +111,16 @@ When switching between debug and regular mode, I suggest running
 
 `make clean`
 
+Instructions for Flo Backend
+============================
+
+Currently you need to make sure that the 2.3-SNAPSHOT of Chisel is
+published locally:
+
+`sbt "publish-local"`
+
+Following the instructions at the Flo repo, you also need to have
+portaudio19-dev installed.
 TODO
 ====
 
