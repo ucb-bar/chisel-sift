@@ -7,20 +7,29 @@ import Chisel._
   * n_ext: number of possible extrema output from this octave
   * next_tap: what point in the gaussian stream to send to the next octave
   */
+class OctaveIO(params: SSEParams) extends Bundle {
+  val img_in = Decoupled(UInt(width=params.it.dwidth)).flip
+  val coord = Valid(new Coord(params.it))
+  
+  // Debug image selection and output
+  val select = UInt(INPUT,width=8)
+  val img_out = Decoupled(UInt(width=params.it.dwidth))
+
+  // Chain output and input
+  val next_img_in = Decoupled(UInt(width=params.it.dwidth)).flip
+  val next_img_out = Decoupled(UInt(width=params.it.dwidth))
+}
+
 class Octave(params: SSEParams, index: Int) extends Module {
   
-  val io = new Bundle {
-    val img_in = Decoupled(UInt(width=params.it.dwidth)).flip
-    val coord = Valid(new Coord(params.it))
-    
-    // Debug image selection and output
-    val select = UInt(INPUT,width=8)
-    val img_out = Decoupled(UInt(width=params.it.dwidth))
+  val io = new OctaveIO(params)
 
-    // Chain output and input
-    val next_img_in = Decoupled(UInt(width=params.it.dwidth)).flip
-    val next_img_out = Decoupled(UInt(width=params.it.dwidth))
-  }
+  // Default values?
+  io.coord.valid := Bool(false)
+  io.img_in.ready := Bool(true)
+  io.img_out.valid := Bool(false)
+  io.next_img_in.ready := Bool(true)
+  io.next_img_out.valid := Bool(false)
 
   // Downsampler
   val ds = Module(new DownSampler(params))
