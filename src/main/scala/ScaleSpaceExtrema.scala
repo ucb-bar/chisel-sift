@@ -98,10 +98,15 @@ class ScaleSpaceExtrema(val params: SSEParams) extends Module {
   oct(0).io.img_out.ready := io.img_out.ready
   io.img_out.valid := oct(0).io.img_out.valid
   
-  if (params.it.dwidth == 24)
-    io.img_out.bits := Fill(3,oct(0).io.img_out.bits)
-  else 
+  if (params.it.dwidth == 24) {
+    val cs = Module(new Colorspace(params))
+    cs.io.select := select_r
+    cs.io.in := oct(0).io.img_out.bits
+    io.img_out.bits := cs.io.out
+    //io.img_out.bits := Fill(3,oct(0).io.img_out.bits)
+  } else {
     io.img_out.bits := oct(0).io.img_out.bits
+  }
 }
 
 // Wrapper to instantiate multiple SSEs
@@ -341,7 +346,12 @@ class SSEFileTester(c: ScaleSpaceExtrema, ftp: FileTesterParams)
     println("Submitting image " + i)
 
     process(file_img_in, ctrl(i), timeout)
-
+    val img_8 = ImgFuncs.im24ToIm8(file_img_in)
+    img_8.write("data/conversion.im8")
+    val img_exp = ImgFuncs.expectedImage(c.params, img_8, ctrl(i))
+    println("Writing Expected image (%d,%d,%d)".format(img_exp.w,img_exp.h,img_exp.d,i))
+    img_exp.write("data/exp%d_%d.im8".format(ctrl(i),i))
+      
     if (streamer.has_timed_out()) {
       println("Timeout on image " + i)
       all_passed = false
@@ -406,7 +416,8 @@ class VecSSERandomTester(c: VecSSE) extends VecSSETester(c) {
 
 class SSERandomTester(c: ScaleSpaceExtrema) extends SSETester(c) {
   val rand_img = Image(c.params.it.width, c.params.it.height, c.params.it.dwidth)
-  val rng = new scala.util.Random()
+  //val rng = new scala.util.Random()
+  val rng = new scala.util.Random(42)
   rng.nextBytes(rand_img.data)
 
   val n_g = c.params.n_ext + 3
@@ -416,11 +427,12 @@ class SSERandomTester(c: ScaleSpaceExtrema) extends SSETester(c) {
   var all_passed = true
   
   val timeout = 1000
-  for (select <- 0 until 2 + n_g + n_d) {
+  //for (select <- 0 until 2 + n_g + n_d) {
+  for (select <- 0 until 3) {
     process(rand_img, select, timeout)
     
     val img_exp = ImgFuncs.expectedImage(c.params, rand_img, select)
-    //streamer.img_out.write("data/out%d.im8".format(select))
+    //streamer.get_img_out().write("data/out%d.im8".format(select))
     //img_exp.write("data/exp%d.im8".format(select))
     
     val passed = (!streamer.has_timed_out() && 
@@ -459,7 +471,7 @@ object ImgFuncs{
     val im8 = Image(im24.w, im24.h, 8)
     for (i <- 0 until im8.h) {
       for (j <- 0 until im8.w) {
-        im8.data(i*im8.w + j) = im24.data(i*im8.w + 3*j)
+        im8.data(i*im8.w + j) = im24.data(i*im8.w*3 + j*3)
       }
     }
     im8

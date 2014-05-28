@@ -61,10 +61,13 @@ Random_%: source/*.scala
 
 Flo_random_%: source/*.scala
 	mkdir -p dreamer
-	$(SBT) "run Random_${*} --genHarness --compile --test --backend flo --targetDir dreamer --vcd --numCols 8 --numRows 8 $(CHISEL_FLAGS)" | tee dreamer/$@.out
+	$(SBT) "run Random_${*} --genHarness --compile --test --backend flo --targetDir dreamer --vcd --debug --numCols 8 --numRows 8 $(CHISEL_FLAGS)" | tee dreamer/$@.out
 
 VecRandom_%: source/*.scala
 	mkdir -p emulator
 	$(SBT) "run $@ --genHarness --compile --test --backend c --targetDir emulator --vcd --debug $(CHISEL_FLAGS)" | tee emulator/$@.out
+
+expected: source/*.scala
+	$(SBT) "run ScaleSpaceExtrema --test --backend c --targetDir emulator --vcd --debug $(CHISEL_FLAGS)" | tee expected.out
 
 .PHONY: top outs all exec check clean verilog debug
