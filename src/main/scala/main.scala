@@ -90,7 +90,7 @@ object SIFT {
         case "Zedboard" => {
           val params = SSEParams(
             it = new ImageType(640,480,24),
-            n_oct = 1
+            n_oct = 2
           )
 
           chiselMain(tutArgs, () => Module(new ScaleSpaceExtrema(params)))

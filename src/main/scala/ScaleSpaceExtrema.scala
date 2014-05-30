@@ -427,23 +427,25 @@ class SSERandomTester(c: ScaleSpaceExtrema) extends SSETester(c) {
   var all_passed = true
   
   val timeout = 1000
-  //for (select <- 0 until 2 + n_g + n_d) {
-  for (select <- 0 until 3) {
-    process(rand_img, select, timeout)
-    
-    val img_exp = ImgFuncs.expectedImage(c.params, rand_img, select)
-    //streamer.get_img_out().write("data/out%d.im8".format(select))
-    //img_exp.write("data/exp%d.im8".format(select))
-    
-    val passed = (!streamer.has_timed_out() && 
-      ImgFuncs.check_img(streamer.get_img_out(), img_exp))
+  for (oct <- 0 until c.params.n_oct) {
+    for (select <- 0 until 2 + n_g + n_d) {
+    //for (select <- 0 until 3) {
+      process(rand_img, ((oct*16) + select), timeout)
+      
+      val img_exp = ImgFuncs.expectedImage(c.params, rand_img, select, oct)
+      streamer.get_img_out().write("data/out_%d_%d.im8".format(oct,select))
+      img_exp.write("data/exp_%d_%d.im8".format(oct,select))
+      
+      val passed = (!streamer.has_timed_out() && 
+        ImgFuncs.check_img(streamer.get_img_out(), img_exp))
 
-    println("Check %d: %b, timeout:%b".format(select, passed, streamer.has_timed_out()))
-    
-    if (passed) {
-      any_passed = true
-    } else {
-      all_passed = false
+      println("Check %d,%d: %b, timeout:%b".format(oct, select, passed, streamer.has_timed_out()))
+      
+      if (passed) {
+        any_passed = true
+      } else {
+        all_passed = false
+      }
     }
   }
 
@@ -451,18 +453,28 @@ class SSERandomTester(c: ScaleSpaceExtrema) extends SSETester(c) {
 }
 
 object ImgFuncs{
-  def expectedImage(params: SSEParams, img_in: Image, select: Int) = {
-    val n_g = params.n_ext + 3
-    val n_d = params.n_ext + 2
+  def expectedImage(params: SSEParams, img_in: Image, select: Int, oct: Int = 0): Image = {
+    if(oct == 0) {
+      val n_g = params.n_ext + 3
+      val n_d = params.n_ext + 2
 
-    if (select==0) {
-      img_in
-    } else if (select < (2 + n_g)) {
-      upsample(gauss(downsample(img_in), params, select-1))
-    } else if (select < (2 + n_g + n_d)) {
-      upsample(diff(downsample(img_in), params, select-n_g-1))
+      if (select==0) {
+        img_in
+      } else if (select < (2 + n_g)) {
+        upsample(gauss(downsample(img_in), params, select-1))
+      } else if (select < (2 + n_g + n_d)) {
+        upsample(diff(downsample(img_in), params, select-n_g-1))
+      } else {
+        img_in
+      }
     } else {
-      img_in
+      upsample(
+        expectedImage(
+          params, gauss(
+            downsample(img_in), params, params.next_tap
+          ), select, oct-1
+        )
+      )
     }
   }
 
