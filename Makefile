@@ -70,4 +70,4 @@ VecRandom_%: source/*.scala
 expected: source/*.scala
 	$(SBT) "run ScaleSpaceExtrema --test --backend c --targetDir emulator --vcd --debug $(CHISEL_FLAGS)" | tee expected.out
 
-.PHONY: top outs all exec check clean verilog debug
+.PHONY: top outs all exec check clean verilog debug zedboard expected
